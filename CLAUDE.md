@@ -111,6 +111,57 @@ docker compose down       # data/ on host is preserved
 to phone → score → overlay URL into OBS Browser Source (1920×1080,
 transparent).
 
+### 3.1 Local-test-before-deploy workflow
+
+Per Souvik's standing instruction: **never push + redeploy before the
+local Docker container actually works end-to-end.** The wrong order
+(push → prod redeploy → e2e-against-`https://...`) burns image rebuilds,
+potentially LE rate-limit slots, and pollutes a VPS shared with 12 other
+tenants. The right order is local-first.
+
+Recipe for this project:
+
+```bash
+# 1. Edit + syntax + reducer tests
+node --check server/*.js
+npm test                                  # 35/35 expected
+
+# 2. Local container — same compose as prod
+docker compose down --remove-orphans
+docker compose build
+docker compose up -d
+# wait HEALTHCHECK=healthy (compose reuses the prod HEALTHCHECK)
+
+# 3. End-to-end against localhost (NOT the public URL)
+curl -sS http://127.0.0.1:3100/api/me
+# for UI: take a screenshot via the playwright MCP and inspect it
+# for socket flows: a Node script that connects to ws://127.0.0.1:3100
+
+# 4. Only when all three pass — push + redeploy
+git push origin main
+ssh root@187.127.153.248
+cd /var/www/scoreboard-live
+git pull --ff-only origin main
+docker compose down --remove-orphans
+docker compose build
+docker compose up -d
+
+# 5. Quick prod smoke (the second test, not the only one):
+#    - container HEALTHCHECK=healthy
+#    - curl https://scoreboard.dctraders.co.in/api/me
+#    - login round-trip
+#    - confirm 11 other containers untouched
+#    - confirm cert untouched unless the install touched it
+```
+
+A failure at stage 3 means: **fix locally, do not push.** A failure
+at stage 5 means: VPS-only problem (port collision, cert path, other
+tenant interference) — much rarer and easier to isolate.
+
+The agent-memory note at `~/.mavis/agents/mavis/memory/MEMORY.md`
+("deploy only after a working local test", 2026-07-09) captures the
+same rule in cross-project form.
+
 ---
 
 ## 4. Configuration
