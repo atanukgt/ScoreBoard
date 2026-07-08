@@ -305,6 +305,15 @@ app.post('/api/tournaments/:id/matches', requireAdmin, (req, res) => {
   res.json(tournamentPayload(tournaments.get(t.id)));
 });
 
+app.delete('/api/tournaments/:id/matches/:matchId', requireAdmin, (req, res) => {
+  const t = tournaments.get(req.params.id);
+  if (!t) return res.status(404).json({ error: 'not found' });
+  // Match id is a string short-id; the link uses the same string. Don't bother
+  // verifying the match still exists — detaching a missing link is a no-op.
+  tournamentMatches.remove(t.id, String(req.params.matchId));
+  res.json(tournamentPayload(tournaments.get(t.id)));
+});
+
 app.get('/api/tournaments/:id/standings', (req, res) => {
   const t = tournaments.get(req.params.id);
   if (!t) return res.status(404).json({ error: 'not found' });

@@ -658,7 +658,9 @@
       body.innerHTML = `<div class="muted">Loading…</div>`;
       try {
         const data = await api(`/api/tournaments/${encodeURIComponent(TID)}/standings`);
-        if (!data.standings.length) {
+        // The endpoint returns the array directly (the overlay consumes the
+        // same shape). If the response is empty, show the "no matches yet" hint.
+        if (!data || !data.length) {
           body.innerHTML = `<div class="empty-text">No matches played yet. The leaderboard will appear here as matches finish.</div>`;
           return;
         }
@@ -676,7 +678,7 @@
                 ${league ? `<th class="num">GF</th><th class="num">GA</th><th class="num">GD</th><th class="num">Pts</th>` : ''}
               </tr>
             </thead>
-            <tbody>${data.standings.map((s, i) => `
+            <tbody>${data.map((s, i) => `
               <tr>
                 <td class="pos">${i + 1}</td>
                 <td class="team">
@@ -684,9 +686,9 @@
                   ${esc(s.name)}
                 </td>
                 <td class="num">${s.played}</td>
-                <td class="num">${s.won}</td>
-                <td class="num">${s.drawn}</td>
-                <td class="num">${s.lost}</td>
+                <td class="num">${s.wins}</td>
+                <td class="num">${s.draws}</td>
+                <td class="num">${s.losses}</td>
                 ${league ? `
                   <td class="num">${s.gf ?? ''}</td>
                   <td class="num">${s.ga ?? ''}</td>

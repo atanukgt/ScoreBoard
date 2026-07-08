@@ -220,6 +220,8 @@ export const tournamentMatches = {
   add: (tId, matchId, { round = 1, group_name = null } = {}) =>
     db.prepare('INSERT OR IGNORE INTO tournament_matches (tournament_id, match_id, round, group_name) VALUES (?, ?, ?, ?)')
       .run(tId, matchId, round, group_name),
+  remove: (tId, matchId) =>
+    db.prepare('DELETE FROM tournament_matches WHERE tournament_id = ? AND match_id = ?').run(tId, matchId),
   removeForMatch: (matchId) =>
     db.prepare('DELETE FROM tournament_matches WHERE match_id = ?').run(matchId),
   removeAllForTournament: (tId) =>
