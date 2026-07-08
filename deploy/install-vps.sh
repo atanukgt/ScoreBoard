@@ -158,9 +158,15 @@ if $DO_NGINX; then
   MY_IP="$(curl -s ifconfig.me 2>/dev/null || true)"
   log "$DOMAIN → $RESOLVED_IP${MY_IP:+  (this VPS: $MY_IP)}."
 
-  log "Issuing Let's Encrypt cert (certbot --nginx)..."
-  certbot --nginx --non-interactive --agree-tos -m "$EMAIL" \
-    -d "$DOMAIN" --redirect || die "certbot failed — check /var/log/letsencrypt/letsencrypt.log"
+  if [[ -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]]; then
+    log "Cert for $DOMAIN already issued — skipping certbot (would burn a LE rate-limit slot)."
+    log "  cert:   /etc/letsencrypt/live/$DOMAIN/fullchain.pem"
+    log "  expires:$(openssl x509 -enddate -noout -in "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" 2>/dev/null | cut -d= -f2)"
+  else
+    log "Issuing Let's Encrypt cert (certbot --nginx)..."
+    certbot --nginx --non-interactive --agree-tos -m "$EMAIL" \
+      -d "$DOMAIN" --redirect || die "certbot failed — check /var/log/letsencrypt/letsencrypt.log"
+  fi
 
   log "Final nginx reload..."
   systemctl reload nginx
