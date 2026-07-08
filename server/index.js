@@ -314,8 +314,25 @@ app.get('/api/tournaments/:id/standings', (req, res) => {
 // ---------- sponsors ----------
 // Position Set and recommendation sizes live in db.js (shared with sockets.js).
 
+// Add the derived `width`/`height`/`recommended_size` to every sponsor row
+// served over HTTP. Sockets.js does the same thing for live broadcasts.
+// Keeps the GET responses identical in shape to what overlays receive via
+// socket, so a control page can switch on either without re-deriving.
+function withDerivedDims(row) {
+  if (!row || row.image_path == null) return row;  // not a sponsor row
+  const def = positionDefaults(row.position);
+  const w = Number(row.width)  > 0 ? Math.round(Number(row.width))  : def.w;
+  const h = Number(row.height) > 0 ? Math.round(Number(row.height)) : def.h;
+  return {
+    ...row,
+    width: w,
+    height: h,
+    recommended_size: `${w}×${h}px`,
+  };
+}
+
 app.get('/api/sponsors', requireAdmin, (req, res) => {
-  res.json(sponsors.list());
+  res.json(sponsors.list().map(withDerivedDims));
 });
 app.post('/api/sponsors', requireAdmin, (req, res) => {
   const { name, dataUrl, link = null, position, interval_seconds } = req.body || {};
@@ -405,12 +422,12 @@ app.get('/api/tournaments/:id/info', (req, res) => {
 // public sponsor listing (no auth) — used by sponsor overlay; respects ?active=1
 app.get('/api/sponsors/public', (req, res) => {
   const activeOnly = req.query.active === '1' || req.query.active === 'true';
-  res.json(sponsors.list(activeOnly ? { activeOnly: true } : {}));
+  res.json(sponsors.list(activeOnly ? { activeOnly: true } : {}).map(withDerivedDims));
 });
 
 // Public active-only sponsor list (for control page dropdown — no admin needed)
 app.get('/api/sponsors/active', (req, res) => {
-  res.json(sponsors.list({ activeOnly: true }));
+  res.json(sponsors.list({ activeOnly: true }).map(withDerivedDims));
 });
 
 // ---------- pages ----------
