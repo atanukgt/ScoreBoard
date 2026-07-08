@@ -46,6 +46,19 @@
     button.primary { background:var(--accent); color:#082f49; border:none; }
     button.danger { background:transparent; color:var(--red); border-color:var(--red); }
     button.ghost { background:transparent; }
+    /* Card delete row — sits below the count row, two small chips, full width */
+    .card-xrow { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 2px; }
+    .card-x {
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 8px 4px; font-size: 12px; font-weight: 700;
+      border-radius: 8px; background: var(--panel2); border: 1px solid var(--line); color: var(--muted);
+      cursor: pointer;
+    }
+    .card-x:hover { color: var(--text); border-color: var(--accent); }
+    .card-x:active { transform: scale(0.97); }
+    .card-x.amber .x { color: var(--amber); font-weight: 900; font-size: 14px; }
+    .card-x.red .x { color: var(--red); font-weight: 900; font-size: 14px; }
+    .card-x .lbl { letter-spacing: 0.3px; }
     button.on { outline:3px solid var(--accent); }
     button[disabled] { opacity: 0.45; cursor: not-allowed; }
     h3 { margin:2px 0 8px; font-size:12px; text-transform:uppercase; letter-spacing:1px; color:var(--muted); }
@@ -53,16 +66,6 @@
                  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     /* Card row with × delete */
     .card-row { position: relative; }
-    .card-row .xbtn {
-      position: absolute; top: 0; right: -2px;
-      width: 18px; height: 18px; padding: 0;
-      border-radius: 50%; font-size: 12px; line-height: 16px;
-      text-align: center; font-weight: 800;
-      opacity: 0.75; box-shadow: 0 0 0 2px var(--bg);
-    }
-    .card-row .xbtn:hover { opacity: 1; }
-    .card-row .xbtn.amber { background: var(--amber); color: #451a03; border: none; }
-    .card-row .xbtn.red { background: var(--red); color: #450a0a; border: none; }
     /* Modal */
     .modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.78); display:none;
                 align-items:center; justify-content:center; z-index:50; padding:16px; }
@@ -126,12 +129,18 @@
         <div class="teamlabel" id="homeLabel">Home</div>
         <div class="grid" style="gap:8px">
           <button class="big green" onclick="goalPrompt('home')">⚽ GOAL</button>
-          <div class="grid g3 card-row">
+          <div class="grid g3">
             <button onclick="send('adjustScore',{team:'home',delta:-1})">−1</button>
             <button class="amber" onclick="cardPrompt('home','y')" id="homeY">🟨 0</button>
             <button class="red" onclick="cardPrompt('home','r')" id="homeR">🟥 0</button>
-            <button class="amber xbtn" onclick="removeCard('home','y')" title="Remove last yellow" aria-label="Remove yellow">×</button>
-            <button class="red xbtn" onclick="removeCard('home','r')" title="Remove last red" aria-label="Remove red">×</button>
+          </div>
+          <div class="card-xrow">
+            <button class="card-x amber" onclick="removeCard('home','y')" title="Remove last yellow" aria-label="Remove last yellow card for home">
+              <span class="x">×</span><span class="lbl">remove yellow</span>
+            </button>
+            <button class="card-x red" onclick="removeCard('home','r')" title="Remove last red" aria-label="Remove last red card for home">
+              <span class="x">×</span><span class="lbl">remove red</span>
+            </button>
           </div>
           <ul class="cardlog" id="homeCardLog" aria-label="Recent home cards"></ul>
         </div>
@@ -140,12 +149,18 @@
         <div class="teamlabel" id="awayLabel">Away</div>
         <div class="grid" style="gap:8px">
           <button class="big green" onclick="goalPrompt('away')">⚽ GOAL</button>
-          <div class="grid g3 card-row">
+          <div class="grid g3">
             <button onclick="send('adjustScore',{team:'away',delta:-1})">−1</button>
             <button class="amber" onclick="cardPrompt('away','y')" id="awayY">🟨 0</button>
             <button class="red" onclick="cardPrompt('away','r')" id="awayR">🟥 0</button>
-            <button class="amber xbtn" onclick="removeCard('away','y')" title="Remove last yellow" aria-label="Remove yellow">×</button>
-            <button class="red xbtn" onclick="removeCard('away','r')" title="Remove last red" aria-label="Remove red">×</button>
+          </div>
+          <div class="card-xrow">
+            <button class="card-x amber" onclick="removeCard('away','y')" title="Remove last yellow" aria-label="Remove last yellow card for away">
+              <span class="x">×</span><span class="lbl">remove yellow</span>
+            </button>
+            <button class="card-x red" onclick="removeCard('away','r')" title="Remove last red" aria-label="Remove last red card for away">
+              <span class="x">×</span><span class="lbl">remove red</span>
+            </button>
           </div>
           <ul class="cardlog" id="awayCardLog" aria-label="Recent away cards"></ul>
         </div>
@@ -171,17 +186,24 @@
   <!-- Sponsor / ad trigger — shown only if any active sponsors exist -->
   <div class="card" id="sponsorCard" style="display:none">
     <h3>Sponsor / ad</h3>
-    <div class="muted" style="margin-bottom:8px;font-size:12px">
-      Show a sponsor on the global sponsor overlay (the OBS browser source at
-      <code>/overlay/sponsor</code>). It appears at its slot for the chosen duration, then rotation resumes.
+    <div class="muted" style="margin-bottom:10px;font-size:12px">
+      Push a sponsor to <code>/overlay/sponsor</code> for the chosen duration. Rotation resumes automatically.
     </div>
-    <div class="row" style="align-items:end">
-      <div class="grow"><label>Sponsor</label><select id="spPick"></select></div>
-      <div><label>Duration (s)</label><input type="number" id="spDur" value="8" min="2" max="60" style="width:80px"></div>
-      <div><label>&nbsp;</label><button class="primary" id="spShow" onclick="showSponsor()">Show now</button></div>
-      <div><label>&nbsp;</label><button class="danger" id="spClear" onclick="clearSponsor()">Clear</button></div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div>
+        <label for="spPick">Pick sponsor</label>
+        <select id="spPick" style="width:100%"></select>
+      </div>
+      <div>
+        <label for="spDur">Duration (seconds)</label>
+        <input type="number" id="spDur" value="8" min="2" max="60" style="width:100%">
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="primary" id="spShow" onclick="showSponsor()" style="flex:2">▶ Show on overlay</button>
+        <button class="ghost" id="spClear" onclick="clearSponsor()" style="flex:1">Clear</button>
+      </div>
     </div>
-    <div class="muted" id="spStatus" style="margin-top:8px;font-size:12px"></div>
+    <div class="muted" id="spStatus" style="margin-top:10px;font-size:12px"></div>
   </div>
 
   <div class="card" id="shootout" style="display:none">

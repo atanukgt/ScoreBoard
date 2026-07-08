@@ -185,13 +185,13 @@
             </select>
           </div>
           <div><label>Format</label>
-            <select id="tnFormat">
-              <option value="single">One-day (single match)</option>
-              <option value="league" selected>Tournament (league + leaderboard)</option>
+            <select id="tnFormat" style="min-width:160px">
+              <option value="single">One-day</option>
+              <option value="league" selected>League + leaderboard</option>
             </select>
           </div>
-          <div><button class="primary" id="addTournament">Create</button></div>
         </div>
+        <div style="margin-top:12px"><button class="primary" id="addTournament">Create tournament</button></div>
       </div>
     </div>
 
@@ -589,12 +589,8 @@ window.addTournament = async () => {
   if (!name) return toast('Name required');
   await api('/api/tournaments', { method: 'POST', body: JSON.stringify({ name, sport, format }) });
   $('#tnName').value = '';
-  toast(format === 'single' ? 'One-day match created' : 'Tournament created');
+  toast(format === 'single' ? 'One-day tournament created' : 'Tournament created');
   refreshTournaments();
-  // Auto-jump to the tournament panel
-  if (format !== 'single') {
-    setTimeout(() => { window.scrollTo({ top: 200, behavior: 'smooth' }); }, 80);
-  }
 };
 $('#addTournament').onclick = window.addTournament;
 
