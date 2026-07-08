@@ -1,0 +1,59 @@
+# scoreboard-live — local + production docker-compose.
+#
+# Local use:
+#   cp .env.example .env   (and set ADMIN_PASSWORD)
+#   docker compose up -d --build
+#   open http://localhost:3100
+#
+# Production (VPS):
+#   scp docker-compose.yml .env :/var/www/scoreboard-live/
+#   ssh root@VPS 'cd /var/www/scoreboard-live && docker compose up -d --build'
+#   nginx (already on the host) then proxies scoreboard.dctraders.co.in
+#   to 127.0.0.1:3100 — see deploy/nginx.conf.example.
+#
+# Notes:
+#   - The ./data bind-mount means the SQLite DB + uploads persist on the host
+#     across `docker compose down / up`. Do NOT delete ./data to "reset" —
+#     use `docker compose down -v` only if you want a clean slate.
+#   - For Linux: pre-create ./data with the right ownership, or the container
+#     will create it as root and fail to write. `mkdir -p data && chown
+#     1000:1000 data` is enough (the image runs as uid 1000 = node).
+#   - `restart: unless-stopped` survives Docker daemon restarts but NOT a
+#     host reboot that requires `docker compose up -d` again. Pair this with
+#     `systemctl enable docker` so Docker itself starts on boot.
+
+services:
+  app:
+    image: scoreboard-live:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: scoreboard-live
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      PORT: ${PORT:-3100}
+      DATA_DIR: ${DATA_DIR:-/data}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD must be set (no default)}
+    ports:
+      - "127.0.0.1:3100:${PORT:-3100}"
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:${PORT:-3100}/api/me >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    # Belt + braces: cap the blast radius if the app ever gets pwned.
+    security_opt:
+      - no-new-privileges:true
+    read_only: false   # /data must be writable; everything else is read-only by the image
+    tmpfs:
+      - /tmp
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

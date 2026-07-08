@@ -1,23 +1,30 @@
-# scoreboard-live — nginx reverse-proxy example
+# scoreboard-live — nginx reverse-proxy for scoreboard.dctraders.co.in
 #
-# Place this file at /etc/nginx/sites-available/scoreboard.conf (Debian/Ubuntu)
-# or /etc/nginx/conf.d/scoreboard.conf (RHEL/CentOS) on your reverse proxy.
-# Adjust `server_name`, the cert paths, and the listen ports to your setup.
+# Place this file at /etc/nginx/sites-available/scoreboard-live.conf
+# (Debian/Ubuntu — symlink into /etc/nginx/sites-enabled/). Then `certbot
+# --nginx -d scoreboard.dctraders.co.in` will rewrite the cert_path lines
+# below to the real Let's Encrypt paths.
 #
 # What it does:
 #   - Terminates TLS (Let's Encrypt)
 #   - Reverse-proxies plain HTTP to the Node app on 127.0.0.1:3100
+#     (the container exposes 127.0.0.1:3100 → container:3100 via
+#      docker-compose.yml)
 #   - Forwards the WebSocket upgrade for Socket.IO (real-time overlay)
 #   - Sets a long read timeout so the overlay socket doesn't get killed
 #     during quiet stretches of the match.
+#
+# If you also host OTHER vhosts on this server (e.g. dealermitra.dctraders.co.in),
+# make sure the HTTP→HTTPS redirect server block below only listens on port 80
+# for THIS subdomain — otherwise it will hijack ACME challenges for the others.
 
-# Redirect HTTP -> HTTPS
+# --- HTTP → HTTPS redirect + ACME challenge fallback ---
 server {
     listen 80;
     listen [::]:80;
-    server_name scoreboard.example.com;
+    server_name scoreboard.dctraders.co.in;
 
-    # ACME http-01 challenge (certbot) must stay reachable
+    # ACME http-01 challenge (certbot) must stay reachable on this vhost.
     location /.well-known/acme-challenge/ {
         root /var/www/letsencrypt;
     }
@@ -27,14 +34,15 @@ server {
     }
 }
 
+# --- HTTPS reverse proxy ---
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
-    server_name scoreboard.example.com;
+    server_name scoreboard.dctraders.co.in;
 
     # ---- TLS (managed by certbot — DO NOT edit these by hand) ----
-    ssl_certificate     /etc/letsencrypt/live/scoreboard.example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/scoreboard.example.com/privkey.pem;
+    ssl_certificate     /etc/letsencrypt/live/scoreboard.dctraders.co.in/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/scoreboard.dctraders.co.in/privkey.pem;
     include /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
@@ -47,7 +55,7 @@ server {
     # ---- Body size (admin can upload a 2 MB crest as base64) ----
     client_max_body_size 3m;
 
-    # ---- Reverse proxy to the Node app ----
+    # ---- Reverse proxy to the Dockerised Node app on the host loopback ----
     location / {
         proxy_pass http://127.0.0.1:3100;
 

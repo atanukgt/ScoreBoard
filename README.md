@@ -35,12 +35,23 @@ browser-source overlay that updates in real time over WebSocket.
 
 ## Quick start (local)
 
+Bare Node:
+
 ```bash
 git clone <this repo>
 cd scoreboard-live
 npm install
 npm test        # 18 reducer tests
 npm start       # http://localhost:3100
+```
+
+Docker (no Node install needed):
+
+```bash
+cp .env.example .env                # set ADMIN_PASSWORD
+docker compose up -d --build        # http://localhost:3100
+docker compose logs -f              # tail the journal
+docker compose down                 # stop (data/ on the host is kept)
 ```
 
 Open the printed URL, log in with the default password `changeme` (change
@@ -87,14 +98,17 @@ current state — the score, clock, period, wickets, everything. No special
 
 ## Production deploy
 
-See [`deploy/DEPLOY.md`](deploy/DEPLOY.md) for the full step-by-step.
-TL;DR:
+The simplest path is the **Docker one-shot installer** ([`deploy/DEPLOY.md`](deploy/DEPLOY.md)):
 
-1. `node ≥ 20` on the VPS, then `npm ci --omit=dev`
-2. `sudo cp deploy/scoreboard.service /etc/systemd/system/`
-3. `sudo cp deploy/nginx.conf.example /etc/nginx/sites-available/scoreboard.conf`
-4. `sudo certbot --nginx -d scoreboard.example.com`
-5. `sudo systemctl enable --now scoreboard`
+```bash
+ssh root@187.127.153.248
+cd /var/www/scoreboard-live
+cp .env.example .env && nano .env       # set ADMIN_PASSWORD
+bash deploy/install-vps.sh              # builds, runs, configs nginx, issues cert
+```
+
+A plain `systemd + Node` path is documented in `deploy/DEPLOY.md` if you'd
+rather skip Docker.
 
 ---
 
