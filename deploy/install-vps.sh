@@ -120,6 +120,21 @@ done
 log "Smoke-testing http://127.0.0.1:$HOST_PORT/api/me ..."
 curl -fsS "http://127.0.0.1:$HOST_PORT/api/me" >/dev/null || die "app responded with non-2xx — check 'docker compose logs app'."
 
+# Daily backup job — installs script + wires root cron. Idempotent: silently
+# no-ops if the cron line is already present.
+log "Installing daily backup (deploy/backup-scoreboard.sh)..."
+install -m 0755 -o root -g root deploy/backup-scoreboard.sh /usr/local/bin/backup-scoreboard.sh
+touch /var/log/scoreboard-backup.log
+CRONLINE="20 2 * * * /usr/local/bin/backup-scoreboard.sh >> /var/log/scoreboard-backup.log 2>&1"
+crontab -l > /tmp/cur-cron 2>/dev/null || true
+if ! grep -qF /usr/local/bin/backup-scoreboard.sh /tmp/cur-cron 2>/dev/null; then
+  echo "$CRONLINE" >> /tmp/cur-cron
+  crontab /tmp/cur-cron
+  log "cron appended: $CRONLINE"
+else
+  log "cron already wired, leaving crontab alone."
+fi
+
 if $DO_NGINX; then
   log "Installing nginx vhost for $DOMAIN → 127.0.0.1:$HOST_PORT..."
   VHOST="/etc/nginx/sites-available/scoreboard-live.conf"
