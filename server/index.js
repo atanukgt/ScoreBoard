@@ -126,6 +126,7 @@ app.get('/api/matches', requireAdmin, (req, res) => {
       id: m.id, sport: m.sport, title: m.title, status: m.status,
       created_at: m.created_at, scheduled_at: m.scheduled_at || null,
       control_token: m.control_token,
+      home_team_id: m.home_team_id, away_team_id: m.away_team_id,
       home: cfg.teams.home.name, away: cfg.teams.away.name,
       home_short: cfg.teams.home.short, away_short: cfg.teams.away.short,
       result: matchResult(m),
@@ -222,7 +223,10 @@ app.get('/api/matches/:id/info', (req, res) => {
   const m = matches.get(req.params.id);
   if (!m) return res.status(404).json({ error: 'not found' });
   const cfg = JSON.parse(m.config);
-  res.json({ id: m.id, sport: m.sport, title: m.title, status: m.status, config: cfg });
+  res.json({
+    id: m.id, sport: m.sport, title: m.title, status: m.status, config: cfg,
+    home_team_id: m.home_team_id, away_team_id: m.away_team_id,
+  });
 });
 
 // ---------- tournaments ----------
