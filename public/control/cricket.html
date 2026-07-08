@@ -76,7 +76,8 @@
     </div>
     <label for="spPick">Pick ad / sponsor</label>
     <select id="spPick"></select>
-    <label for="spDur">Duration (seconds)</label>
+    <div id="spSize" class="muted" style="font-size:11px;margin-top:4px">Pick one to see size</div>
+    <label for="spDur" style="margin-top:8px;display:block">Duration (seconds)</label>
     <input type="number" id="spDur" value="8" min="2" max="60">
     <div class="grid g2" style="margin-top:10px">
       <button class="accent" id="spShow" onclick="showSponsor()">▶ Show on stream</button>
@@ -395,7 +396,19 @@ async function loadSponsors() {
   card.style.display = '';
   $('#spPick').innerHTML = sponsorCache.map((s) =>
     `<option value="${s.id}">${esc(s.name)} (${esc(s.position)})</option>`).join('');
+  refreshSpSize();
 }
+function refreshSpSize() {
+  const id = +($('#spPick')?.value || 0);
+  const sp = sponsorCache.find((s) => s.id === id);
+  const $sz = $('#spSize');
+  if (!$sz) return;
+  if (!sp) { $sz.textContent = 'Pick one to see size'; return; }
+  const w = sp.width  || 360;
+  const h = sp.height || 140;
+  $sz.textContent = `Will render at ${w}×${h}px · ${sp.position}`;
+}
+$('#spPick')?.addEventListener('change', refreshSpSize);
 window.showSponsor = () => {
   const id = +$('#spPick').value;
   const dur = Math.max(2, Math.min(60, +$('#spDur').value || 8));
@@ -403,7 +416,8 @@ window.showSponsor = () => {
   socket.emit('sponsor:feature', { sponsor_id: id, duration_seconds: dur }, (res) => {
     if (res && !res.ok) return toast(res.error);
     const sp = sponsorCache.find((s) => s.id === id);
-    $('#spStatus').textContent = `Showing "${sp ? sp.name : 'ad'}" on stream for ${dur}s`;
+    const sz = sp?.width && sp?.height ? `${sp.width}×${sp.height}px at ${sp.position}` : (sp?.position || '');
+    $('#spStatus').textContent = `Showing "${sp ? sp.name : 'ad'}" on stream${sz ? ' — ' + sz : ''} for ${dur}s`;
   });
 };
 window.clearSponsor = () => {

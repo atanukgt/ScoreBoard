@@ -34,7 +34,9 @@
   }
   .slot.show .img { opacity: 1; }
 
-  /* Slot geometries (1920x1080 base). */
+  /* Slot geometries (1920x1080 base). JS inline width/height from the
+     sponsor payload overrides these defaults when the sponsor has a
+     custom size stored. */
   .slot.top-left     { top: 32px;    left: 32px;    width: 360px; height: 140px; }
   .slot.top-right    { top: 32px;    right: 32px;   width: 360px; height: 140px; }
   .slot.bottom-left  { bottom: 32px; left: 32px;    width: 360px; height: 140px; }
@@ -46,6 +48,14 @@
   .slot.center-banner {
     top: 50%; left: 50%; transform: translate(-50%, -50%);
     width: 720px; height: 160px;
+  }
+  .slot.left-banner {
+    top: 50%; left: 32px; transform: translateY(-50%);
+    width: 200px; height: 540px;
+  }
+  .slot.right-banner {
+    top: 50%; right: 32px; transform: translateY(-50%);
+    width: 200px; height: 540px;
   }
 
   /* Brief "featured" badge so the operator sees which sponsor was just pushed. */
@@ -84,6 +94,9 @@ function clearSlot(slot) {
 }
 
 function showSponsor(slot, sponsor, holdMs, featured) {
+  // Apply the sponsor's chosen size (overrides the position class default).
+  if (sponsor.width)  slot.el.style.width  = `${sponsor.width}px`;
+  if (sponsor.height) slot.el.style.height = `${sponsor.height}px`;
   const imgUrl = `/uploads/${encodeURIComponent(sponsor.image_path)}`;
   const inner = sponsor.link
     ? `<a href="${esc(sponsor.link)}" target="_blank" rel="noopener noreferrer">

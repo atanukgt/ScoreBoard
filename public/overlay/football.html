@@ -118,6 +118,10 @@
                         width: 720px; height: 100px; }
   .slot.center-banner { top: 50%; left: 50%; transform: translate(-50%, -50%);
                         width: 720px; height: 160px; }
+  .slot.left-banner   { top: 50%; left: 32px;  transform: translateY(-50%);
+                        width: 200px; height: 540px; }
+  .slot.right-banner  { top: 50%; right: 32px; transform: translateY(-50%);
+                        width: 200px; height: 540px; }
   .slot.featured .img { box-shadow: 0 0 0 3px #38bdf8, 0 8px 32px rgba(0,0,0,.4); }
 </style>
 </head>
@@ -163,13 +167,15 @@
   <div class="col"><div class="lbl" id="pAwayLbl"></div><div class="kicks" id="pAway"></div></div>
 </div>
 
-<!-- Sponsor overlay slots — invisible until the operator hits "Show on overlay" in any control panel. -->
-<div class="slot top-left"      id="slot-top-left"      data-pos="top-left"></div>
-<div class="slot top-right"     id="slot-top-right"     data-pos="top-right"></div>
-<div class="slot bottom-left"   id="slot-bottom-left"   data-pos="bottom-left"></div>
-<div class="slot bottom-right"  id="slot-bottom-right"  data-pos="bottom-right"></div>
-<div class="slot top-banner"    id="slot-top-banner"    data-pos="top-banner"></div>
-<div class="slot center-banner" id="slot-center-banner" data-pos="center-banner"></div>
+  <!-- Sponsor overlay slots — invisible until the operator hits "Show on overlay" in any control panel. -->
+  <div class="slot top-left"      id="slot-top-left"      data-pos="top-left"></div>
+  <div class="slot top-right"     id="slot-top-right"     data-pos="top-right"></div>
+  <div class="slot bottom-left"   id="slot-bottom-left"   data-pos="bottom-left"></div>
+  <div class="slot bottom-right"  id="slot-bottom-right"  data-pos="bottom-right"></div>
+  <div class="slot top-banner"    id="slot-top-banner"    data-pos="top-banner"></div>
+  <div class="slot center-banner" id="slot-center-banner" data-pos="center-banner"></div>
+  <div class="slot left-banner"   id="slot-left-banner"   data-pos="left-banner"></div>
+  <div class="slot right-banner"  id="slot-right-banner"  data-pos="right-banner"></div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
@@ -312,6 +318,10 @@ document.querySelectorAll('.slot[data-pos]').forEach((el) => {
 });
 
 function renderFeatured(slot, sponsor, holdMs) {
+  // Sponsor-payload size overrides the position-CSS default (so a custom size
+  // stored by the operator renders at exactly that size).
+  if (sponsor.width)  slot.el.style.width  = `${sponsor.width}px`;
+  if (sponsor.height) slot.el.style.height = `${sponsor.height}px`;
   const imgUrl = `/uploads/${encodeURIComponent(sponsor.image_path)}`;
   const inner = sponsor.link
     ? `<a href="${escapeHtml(sponsor.link)}" target="_blank" rel="noopener noreferrer">

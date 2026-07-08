@@ -1,4 +1,4 @@
-import { matches, events, sponsors } from './db.js';
+import { matches, events, sponsors, positionDefaults } from './db.js';
 import * as football from './sports/football.js';
 import * as cricket from './sports/cricket.js';
 import { isCompletedState } from './tournament.js';
@@ -158,7 +158,15 @@ export function setupSockets(io) {
 // Sponsor overlay connects without a matchId/token but joins the broadcast room
 // so it can receive `sponsor:feature` / `sponsor:cleared`. We expose a thin
 // shim by allowing handshake { role: 'sponsor-overlay' } to also land here.
+//
+// Every payload includes `width` and `height` so the overlay can render the
+// image at the operator's chosen size (not just the position default).
+// Falls back to `positionDefaults` for sponsors without stored dims (older DB
+// rows from before this column existed).
 function serializeSponsor(row) {
+  const def = positionDefaults(row.position);
+  const w = Number(row.width) > 0 ? Math.round(Number(row.width))  : def.w;
+  const h = Number(row.height) > 0 ? Math.round(Number(row.height)) : def.h;
   return {
     id: row.id,
     name: row.name,
@@ -167,6 +175,9 @@ function serializeSponsor(row) {
     link: row.link,
     position: row.position,
     interval_seconds: row.interval_seconds,
+    width: w,
+    height: h,
+    recommended_size: `${w}×${h}px`,
   };
 }
 

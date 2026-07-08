@@ -73,6 +73,8 @@ CREATE TABLE IF NOT EXISTS sponsors (
   position TEXT NOT NULL,
   interval_seconds INTEGER NOT NULL DEFAULT 8,
   active INTEGER NOT NULL DEFAULT 1,
+  width INTEGER,
+  height INTEGER,
   created_at INTEGER NOT NULL
 );
 `);
@@ -84,6 +86,39 @@ function tryAlter(sql) {
 }
 tryAlter(`ALTER TABLE tournaments ADD COLUMN format TEXT NOT NULL DEFAULT 'league'`);
 tryAlter(`ALTER TABLE matches ADD COLUMN scheduled_at INTEGER`);
+tryAlter(`ALTER TABLE sponsors ADD COLUMN width INTEGER`);
+tryAlter(`ALTER TABLE sponsors ADD COLUMN height INTEGER`);
+
+// ---- sponsor positions + recommended render sizes ----
+// Used by both server (validation, fallback sizes) and clients (overlay slot
+// positions). New positions can be added here without changing the DB schema
+// (they all use the same width/height columns).
+export const SPONSOR_POSITIONS = new Set([
+  'top-left', 'top-right',
+  'bottom-left', 'bottom-right',
+  'top-banner', 'center-banner',
+  'left-banner', 'right-banner',
+]);
+export const POSITION_DIMS = {
+  'top-left':      { w: 360, h: 140 },
+  'top-right':     { w: 360, h: 140 },
+  'bottom-left':   { w: 360, h: 140 },
+  'bottom-right':  { w: 360, h: 140 },
+  'top-banner':    { w: 720, h: 100 },
+  'center-banner': { w: 720, h: 160 },
+  // Vertical sidebars — sized for a 1920×1080 canvas (skyscraper feel).
+  'left-banner':   { w: 200, h: 540 },
+  'right-banner':  { w: 200, h: 540 },
+};
+export function positionDefaults(position) {
+  return POSITION_DIMS[position] || { w: 360, h: 140 };
+}
+export function clampDim(n, fallback) {
+  const v = Math.round(Number(n));
+  if (!Number.isFinite(v) || v <= 0) return fallback;
+  // Sanity bounds — anything bigger than a 1920×1080 canvas is almost certainly a typo.
+  return Math.max(40, Math.min(1920, v));
+}
 
 // ---- teams ----
 export const teams = {
@@ -200,16 +235,17 @@ export const sponsors = {
     return db.prepare('SELECT * FROM sponsors ORDER BY created_at DESC').all();
   },
   get: (id) => db.prepare('SELECT * FROM sponsors WHERE id = ?').get(id),
-  create: ({ name, image_path, link = null, position, interval_seconds = 8, active = 1 }) =>
-    db.prepare(`INSERT INTO sponsors (name, image_path, link, position, interval_seconds, active, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)`)
-      .run(name, image_path, link, position,
-           Math.max(1, Math.min(600, interval_seconds | 0 || 8)),
-           active ? 1 : 0, Date.now()).lastInsertRowid,
+  create: ({ name, image_path, link = null, position, interval_seconds = 8, active = 1,
+            width = null, height = null }) =>
+    db.prepare(`INSERT INTO sponsors (name, image_path, link, position, interval_seconds, active, width, height, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .run(name, image_path, link, position,
+         Math.max(1, Math.min(600, interval_seconds | 0 || 8)),
+         active ? 1 : 0, width, height, Date.now()).lastInsertRowid,
   update: (id, patch) => {
     const fields = [];
     const values = [];
-    for (const k of ['name', 'link', 'position', 'interval_seconds', 'active', 'image_path']) {
+    for (const k of ['name', 'link', 'position', 'interval_seconds', 'active', 'image_path', 'width', 'height']) {
       if (k in patch) { fields.push(`${k} = ?`); values.push(patch[k]); }
     }
     if (!fields.length) return;

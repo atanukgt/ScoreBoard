@@ -5,7 +5,11 @@ import fs from 'fs';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { Server } from 'socket.io';
-import { teams, players, matches, events, tournaments, tournamentTeams, tournamentMatches, sponsors, UPLOADS_DIR } from './db.js';
+import {
+  teams, players, matches, events, tournaments, tournamentTeams, tournamentMatches,
+  sponsors, UPLOADS_DIR,
+  SPONSOR_POSITIONS, positionDefaults, clampDim,
+} from './db.js';
 import { ADMIN_PASSWORD, makeSessionCookie, isAdminRequest, requireAdmin } from './auth.js';
 import { setupSockets, invalidate } from './sockets.js';
 import { computeStandings, replayMatch } from './tournament.js';
@@ -308,9 +312,7 @@ app.get('/api/tournaments/:id/standings', (req, res) => {
 });
 
 // ---------- sponsors ----------
-const SPONSOR_POSITIONS = new Set([
-  'top-left', 'top-right', 'bottom-left', 'bottom-right', 'center-banner', 'top-banner',
-]);
+// Position Set and recommendation sizes live in db.js (shared with sockets.js).
 
 app.get('/api/sponsors', requireAdmin, (req, res) => {
   res.json(sponsors.list());
@@ -328,6 +330,11 @@ app.post('/api/sponsors', requireAdmin, (req, res) => {
   if (buf.length > 2 * 1024 * 1024) return res.status(400).json({ error: 'image too large (max 2 MB)' });
   const file = `sponsor-${Date.now()}-${crypto.randomBytes(3).toString('hex')}.${ext}`;
   fs.writeFileSync(path.join(UPLOADS_DIR, file), buf);
+  // Width/height are optional — they fall back to the recommended size for this position
+  // at render time, which keeps created-without-size sponsors looking sensible.
+  const def = positionDefaults(position);
+  const width  = clampDim(req.body?.width,  def.w);
+  const height = clampDim(req.body?.height, def.h);
   const id = sponsors.create({
     name: String(name).trim(),
     image_path: file,
@@ -335,6 +342,8 @@ app.post('/api/sponsors', requireAdmin, (req, res) => {
     position,
     interval_seconds: interval_seconds | 0 || 8,
     active: 1,
+    width,
+    height,
   });
   res.json(sponsors.get(id));
 });
@@ -342,7 +351,7 @@ app.put('/api/sponsors/:id', requireAdmin, (req, res) => {
   const s = sponsors.get(req.params.id);
   if (!s) return res.status(404).json({ error: 'not found' });
   const patch = {};
-  const { name, link, position, interval_seconds, active, dataUrl } = req.body || {};
+  const { name, link, position, interval_seconds, active, dataUrl, width, height } = req.body || {};
   if (typeof name === 'string') patch.name = name.trim();
   if (typeof link === 'string') patch.link = link.trim() || null;
   if (typeof position === 'string') {
@@ -353,6 +362,8 @@ app.put('/api/sponsors/:id', requireAdmin, (req, res) => {
   if (active === 0 || active === 1 || active === true || active === false) {
     patch.active = active ? 1 : 0;
   }
+  if (width  != null) patch.width  = clampDim(width,  positionDefaults(position || s.position).w);
+  if (height != null) patch.height = clampDim(height, positionDefaults(position || s.position).h);
   if (typeof dataUrl === 'string' && dataUrl) {
     const m = /^data:image\/(png|jpeg|svg\+xml|webp|gif);base64,(.+)$/.exec(dataUrl);
     if (!m) return res.status(400).json({ error: 'expected image data URL' });

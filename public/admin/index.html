@@ -285,16 +285,29 @@
       <div class="row">
         <div><label>Position</label>
           <select id="spPosition">
-            <option value="top-left">top-left</option>
-            <option value="top-right">top-right</option>
-            <option value="bottom-left">bottom-left</option>
-            <option value="bottom-right">bottom-right</option>
-            <option value="top-banner">top-banner</option>
-            <option value="center-banner">center-banner</option>
+            <option value="top-left">top-left (corner)</option>
+            <option value="top-right">top-right (corner)</option>
+            <option value="bottom-left">bottom-left (corner)</option>
+            <option value="bottom-right">bottom-right (corner)</option>
+            <option value="top-banner">top-banner (wide strip)</option>
+            <option value="center-banner">center-banner (centre)</option>
+            <option value="left-banner">left-banner (vertical sidebar)</option>
+            <option value="right-banner">right-banner (vertical sidebar)</option>
           </select>
         </div>
         <div><label>Interval (seconds)</label><input type="number" id="spInterval" value="8" min="1" max="600"></div>
+      </div>
+      <div class="row">
+        <div class="grow"><label>Width <span id="spWLabel" class="muted">px</span></label>
+          <input type="number" id="spWidth" min="40" max="1920" step="10" value="360"></div>
+        <div class="grow"><label>Height <span id="spHLabel" class="muted">px</span></label>
+          <input type="number" id="spHeight" min="40" max="1920" step="10" value="140"></div>
+        <div style="flex:1 1 100%;min-width:0"><label>&nbsp;</label>
+          <div id="spSizeHint" class="muted" style="font-size:12px"></div></div>
+      </div>
+      <div class="row">
         <div><label>&nbsp;</label><button class="primary" id="addSponsor">Add sponsor</button></div>
+      </div>
       </div>
     </div>
     <h2>Active &amp; inactive sponsors</h2>
@@ -910,13 +923,51 @@ async function refreshSponsors() {
     : '<p class="muted">No sponsors yet.</p>';
 }
 
+// ---- sponsor dimensions: recommended size per position (mirror of server/db.js) ----
+const SPONSOR_DIMS = {
+  'top-left':      { w: 360, h: 140, hint: 'corner — short logo / brand mark' },
+  'top-right':     { w: 360, h: 140, hint: 'corner — short logo / brand mark' },
+  'bottom-left':   { w: 360, h: 140, hint: 'corner — short logo / brand mark' },
+  'bottom-right':  { w: 360, h: 140, hint: 'corner — short logo / brand mark' },
+  'top-banner':    { w: 720, h: 100, hint: 'wide strip — keep text 100 px tall or less' },
+  'center-banner': { w: 720, h: 160, hint: 'centre — sponsor hero / headline' },
+  'left-banner':   { w: 200, h: 540, hint: 'vertical sidebar — tall skyscraper (4:9-ish)' },
+  'right-banner':  { w: 200, h: 540, hint: 'vertical sidebar — tall skyscraper (4:9-ish)' },
+};
+function sizeHintFor(pos, w, h) {
+  // Show the recommended size + a recommendation hint, but flag when the
+  // operator has overridden either dimension.
+  const def = SPONSOR_DIMS[pos] || { w: 360, h: 140 };
+  const overridden = (w !== def.w || h !== def.h);
+  return overridden
+    ? `${w}×${h}px · custom (recommended: ${def.w}×${def.h}px)`
+    : `${def.w}×${def.h}px · recommended · ${def.hint}`;
+}
+
+function refreshSpSizeHint() {
+  const pos = $('#spPosition').value;
+  const def = SPONSOR_DIMS[pos] || { w: 360, h: 140 };
+  // Only auto-update if the operator hasn't manually edited the fields this session.
+  if (!$('#spWidth').dataset.touched) $('#spWidth').value = def.w;
+  if (!$('#spHeight').dataset.touched) $('#spHeight').value = def.h;
+  $('#spSizeHint').textContent = sizeHintFor(pos, +$('#spWidth').value || def.w, +$('#spHeight').value || def.h);
+}
+
+$('#spPosition')?.addEventListener('change', refreshSpSizeHint);
+$('#spWidth')?.addEventListener('input', (e) => { e.target.dataset.touched = '1'; refreshSpSizeHint(); });
+$('#spHeight')?.addEventListener('input', (e) => { e.target.dataset.touched = '1'; refreshSpSizeHint(); });
+refreshSpSizeHint();
+
 function sponsorRow(s) {
   const imgUrl = `/uploads/${esc(s.image_path)}`;
+  const w = s.width  || SPONSOR_DIMS[s.position]?.w  || 360;
+  const h = s.height || SPONSOR_DIMS[s.position]?.h  || 140;
+  const override = (s.width && s.height && (s.width !== SPONSOR_DIMS[s.position]?.w || s.height !== SPONSOR_DIMS[s.position]?.h));
   return `<div class="match-item" data-id="${s.id}">
     <img class="crest" src="${imgUrl}" alt="">
     <div class="item-name">
       <strong>${esc(s.name)}</strong>
-      <span class="muted">${esc(s.position)} · ${s.interval_seconds}s · ${s.active ? 'active' : 'inactive'}${s.link ? ' · link' : ''}</span>
+      <span class="muted">${esc(s.position)} · ${w}×${h}px${override ? ' (custom)' : ''} · ${s.interval_seconds}s · ${s.active ? 'active' : 'inactive'}${s.link ? ' · link' : ''}</span>
     </div>
     <div class="item-actions">
       <button onclick="toggleSponsor(${s.id}, ${s.active ? 0 : 1})">${s.active ? 'Disable' : 'Enable'}</button>
@@ -931,6 +982,8 @@ window.addSponsor = async () => {
   const link = $('#spLink').value.trim();
   const position = $('#spPosition').value;
   const interval_seconds = +$('#spInterval').value || 8;
+  const width  = +$('#spWidth').value  || (SPONSOR_DIMS[position]?.w  || 360);
+  const height = +$('#spHeight').value || (SPONSOR_DIMS[position]?.h  || 140);
   if (!name) return toast('Name required');
   if (!file) return toast('Pick an image');
   const dataUrl = await new Promise((ok, err) => {
@@ -938,9 +991,13 @@ window.addSponsor = async () => {
   });
   await api('/api/sponsors', {
     method: 'POST',
-    body: JSON.stringify({ name, dataUrl, link: link || null, position, interval_seconds }),
+    body: JSON.stringify({ name, dataUrl, link: link || null, position, interval_seconds, width, height }),
   });
   $('#spName').value = ''; $('#spFile').value = ''; $('#spLink').value = '';
+  // Reset the touched flags so the next add starts at the position's defaults again.
+  $('#spWidth').dataset.touched = '';
+  $('#spHeight').dataset.touched = '';
+  refreshSpSizeHint();
   toast('Sponsor added');
   refreshSponsors();
 };

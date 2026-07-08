@@ -469,9 +469,16 @@ function updateSpPosPill() {
   const pill = $('#spPos');
   if (!pill) return;
   const sp = sponsorCache.find((s) => s.id === id);
-  pill.textContent = sp ? sp.position : '—';
+  if (!sp) {
+    pill.textContent = '—';
+    pill.className = 'sp-pill';
+    return;
+  }
+  const w = sp.width  || 360;
+  const h = sp.height || 140;
+  pill.textContent = `${sp.position} · ${w}×${h}`;
   // Pill border colour reacts to the position class (set in CSS).
-  pill.className = 'sp-pill' + (sp ? ' ' + sp.position : '');
+  pill.className = 'sp-pill' + ' ' + sp.position;
 }
 async function loadSponsors() {
   try { sponsorCache = await api('/api/sponsors/active'); }
