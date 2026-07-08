@@ -390,7 +390,6 @@
     const params = new URLSearchParams(location.search);
     const TID = Number(params.get('id'));   // numeric — API returns numeric IDs
     if (!TID || !Number.isInteger(TID)) {
-    if (!TID) {
       document.querySelector('main').innerHTML =
         `<div class="empty-state" style="padding:60px 20px; text-align:center; border:2px dashed var(--line); border-radius:14px; color:var(--muted);">
            <div style="font-size:48px; margin-bottom:14px">🏆</div>

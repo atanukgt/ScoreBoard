@@ -794,8 +794,17 @@ window.addTournament = async () => {
   toast(format === 'single' ? 'One-day tournament created' : 'Tournament created');
   refreshTournaments();
 };
-$('#addTournament').onclick = window.addTournament;
 
+// #addTournament lived in the inline wizard on this tab. The wizard is
+// gone (tournament CRUD now lives at /admin/tournaments.html and
+// /admin/tournament.html), so the element no longer exists. Guard the
+// bind so removing the tab content doesn't crash the rest of the script
+// (the verifier caught this — script halted at line 797, leaving the whole
+// /admin/ page empty).
+{
+  const el = document.getElementById('addTournament');
+  if (el) el.onclick = window.addTournament;
+}
 window.delTournament = async (id) => {
   if (!confirm('Delete this tournament? Matches stay, but lose their tournament link.')) return;
   await api(`/api/tournaments/${id}`, { method: 'DELETE' });
