@@ -12,7 +12,7 @@ import { computeStandings } from './tournament.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3100;
 
 const app = express();
 const server = http.createServer(app);

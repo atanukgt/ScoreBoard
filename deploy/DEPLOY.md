@@ -254,7 +254,7 @@ updates as long as the DB file isn't touched.
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `EADDRINUSE :::3000` on start | Another process owns the port | `sudo lsof -iTCP:3000 -sTCP:LISTEN` and stop it |
+| `EADDRINUSE :::3100` on start | Another process owns the port | `sudo lsof -iTCP:3100 -sTCP:LISTEN` and stop it |
 | `Error: Cannot find module 'better-sqlite3'` | Installed deps on wrong arch | Delete `node_modules`, re-run `npm ci` on the VPS |
 | Overlay connects then immediately disconnects | Nginx missing WebSocket headers | Verify `Upgrade`/`Connection "upgrade"` are in the proxy block; `proxy_read_timeout` ≥ 60s |
 | Admin login returns 401 forever | `ADMIN_PASSWORD` not set | Set it in `/etc/scoreboard.env` and restart |

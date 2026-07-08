@@ -40,7 +40,7 @@ git clone <this repo>
 cd scoreboard-live
 npm install
 npm test        # 18 reducer tests
-npm start       # http://localhost:3000
+npm start       # http://localhost:3100
 ```
 
 Open the printed URL, log in with the default password `changeme` (change
@@ -168,7 +168,7 @@ unit):
 
 | Var | Default | Notes |
 |---|---|---|
-| `PORT` | `3000` | HTTP listen port |
+| `PORT` | `3100` | HTTP listen port |
 | `ADMIN_PASSWORD` | `changeme` | **set this in production**; the server logs a warning if you don't |
 | `DATA_DIR` | `./data` | DB + uploads + secret signing key live here |
 | `NODE_ENV` | unset | set to `production` to silence the dev warnings |

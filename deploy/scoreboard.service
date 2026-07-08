@@ -35,7 +35,7 @@ ExecStart=/home/scoreboard/.nvm/versions/node/v20.18.0/bin/node server/index.js
 # 0600, owned by scoreboard) rather than inline here.
 EnvironmentFile=/etc/scoreboard.env
 # Static fallbacks (EnvironmentFile wins on conflict):
-Environment=PORT=3000
+Environment=PORT=3100
 Environment=NODE_ENV=production
 
 # --- Data persistence ---
