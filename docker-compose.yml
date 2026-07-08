@@ -36,7 +36,7 @@ services:
       DATA_DIR: ${DATA_DIR:-/data}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD must be set (no default)}
     ports:
-      - "127.0.0.1:3100:${PORT:-3100}"
+      - "127.0.0.1:${PORT:-3100}:${PORT:-3100}"
     volumes:
       - ./data:/data
     restart: unless-stopped
