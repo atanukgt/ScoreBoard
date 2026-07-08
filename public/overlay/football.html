@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Football Overlay</title>
+<style>
+  /* Transparent page — designed for a 1920x1080 OBS browser source */
+  html, body { margin:0; padding:0; background:transparent; overflow:hidden;
+               font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif; }
+  * { box-sizing:border-box; }
+  #bug {
+    position:absolute; top:40px; left:40px; display:flex; align-items:stretch; height:56px;
+    border-radius:10px; overflow:hidden; box-shadow:0 4px 18px rgba(0,0,0,.45);
+    font-variant-numeric:tabular-nums; opacity:0; transition:opacity .4s;
+  }
+  #bug.show { opacity:1; }
+  .teamblock { display:flex; align-items:center; gap:9px; padding:0 14px;
+               background:linear-gradient(180deg,#1b2436,#111827); color:#fff; }
+  .stripe { width:6px; }
+  .crest { width:34px; height:34px; object-fit:contain; }
+  .short { font-weight:800; font-size:22px; letter-spacing:1px; }
+  .reds { display:flex; gap:3px; }
+  .redcard { width:9px; height:13px; background:#ef4444; border-radius:2px; }
+  .scorebox { display:flex; align-items:center; padding:0 16px; background:#fff; color:#0b1220;
+              font-weight:900; font-size:26px; gap:8px; }
+  .timebox { display:flex; flex-direction:column; align-items:center; justify-content:center;
+             padding:0 14px; background:linear-gradient(180deg,#0d1b12,#052e16); color:#4ade80; min-width:86px; }
+  .clock { font-weight:800; font-size:21px; }
+  .period { font-size:10px; letter-spacing:1.5px; text-transform:uppercase; color:#86efac; }
+  .stopbadge { position:absolute; top:-10px; right:-10px; background:#fbbf24; color:#451a03;
+               font-weight:900; font-size:13px; padding:2px 7px; border-radius:20px; display:none; }
+  #goalbar {
+    position:absolute; left:50%; bottom:110px; transform:translateX(-50%) translateY(30px);
+    background:linear-gradient(90deg,#052e16,#15803d,#052e16); color:#fff; padding:14px 44px;
+    border-radius:12px; font-size:30px; font-weight:900; letter-spacing:1px; opacity:0;
+    transition:all .45s cubic-bezier(.2,.9,.3,1.2); box-shadow:0 6px 24px rgba(0,0,0,.5); white-space:nowrap;
+  }
+  #goalbar.show { opacity:1; transform:translateX(-50%) translateY(0); }
+  #pens {
+    position:absolute; left:50%; bottom:60px; transform:translateX(-50%);
+    background:rgba(10,15,26,.92); color:#fff; border-radius:12px; padding:14px 26px;
+    display:none; gap:26px; font-weight:800; box-shadow:0 6px 24px rgba(0,0,0,.5);
+  }
+  #pens.show { display:flex; }
+  #pens .col { text-align:center; }
+  #pens .kicks { letter-spacing:4px; font-size:22px; margin-top:4px; }
+  #pens .g { color:#4ade80; } #pens .x { color:#ef4444; }
+  #pens .lbl { font-size:13px; color:#94a3b8; letter-spacing:1px; }
+  #cardbar {
+    position:absolute; left:50%; top:40%; transform:translate(-50%,-50%) scale(.85);
+    min-width:420px; max-width:80vw; padding:14px 28px 14px 18px; color:#fff;
+    border-radius:14px; font-weight:800; font-size:26px; letter-spacing:1px;
+    display:flex; align-items:center; gap:14px; opacity:0;
+    box-shadow:0 8px 28px rgba(0,0,0,.55); pointer-events:none; white-space:nowrap;
+    transition:opacity .35s ease, transform .35s cubic-bezier(.2,.9,.3,1.2);
+  }
+  #cardbar.show { opacity:1; transform:translate(-50%,-50%) scale(1); }
+  #cardbar.red { background:linear-gradient(180deg,#7f1d1d,#ef4444); border-top:6px solid #fecaca;
+                 animation:cardshake .55s ease-out 1; }
+  #cardbar.yellow { background:linear-gradient(180deg,#92400e,#fbbf24); border-top:6px solid #fde68a; color:#451a03; }
+  #cardbar .icon {
+    width:42px; height:30px; border-radius:4px; flex-shrink:0;
+    background:#fde68a; box-shadow:inset 0 0 0 2px rgba(0,0,0,.18);
+    display:flex; align-items:center; justify-content:center;
+    font-size:18px; font-weight:900; color:#7f1d1d;
+  }
+  #cardbar.red .icon { background:#fff; color:#7f1d1d; }
+  #cardbar .label { font-size:13px; font-weight:700; letter-spacing:2px;
+                    text-transform:uppercase; opacity:.85; margin-right:2px; }
+  #cardbar .text { display:flex; flex-direction:column; line-height:1.1; }
+  #cardbar .text .main { font-size:26px; }
+  #cardbar .text .sub { font-size:14px; font-weight:700; opacity:.85; letter-spacing:1px; }
+  @keyframes cardshake {
+    0%   { transform:translate(-50%,-50%) scale(.6)  rotate(0deg); }
+    25%  { transform:translate(-50%,-50%) scale(1.05) rotate(-2deg); }
+    50%  { transform:translate(-50%,-50%) scale(1)    rotate(2deg); }
+    75%  { transform:translate(-50%,-50%) scale(1)    rotate(-1deg); }
+    100% { transform:translate(-50%,-50%) scale(1)    rotate(0deg); }
+  }
+  #cardbar.show.red { animation:cardshake .55s ease-out 1; }
+</style>
+</head>
+<body>
+<div id="bug">
+  <div class="stripe" id="homeStripe"></div>
+  <div class="teamblock">
+    <img class="crest" id="homeCrest" style="display:none"><span class="short" id="homeShort"></span>
+    <span class="reds" id="homeReds"></span>
+  </div>
+  <div class="scorebox"><span id="homeScore">0</span><span>–</span><span id="awayScore">0</span></div>
+  <div class="teamblock">
+    <span class="reds" id="awayReds"></span>
+    <span class="short" id="awayShort"></span><img class="crest" id="awayCrest" style="display:none">
+  </div>
+  <div class="stripe" id="awayStripe"></div>
+  <div class="timebox"><span class="clock" id="clock">00:00</span><span class="period" id="period"></span></div>
+  <div class="stopbadge" id="stoppage"></div>
+</div>
+
+<div id="goalbar"></div>
+
+<div id="cardbar"></div>
+
+<div id="pens">
+  <div class="col"><div class="lbl" id="pHomeLbl"></div><div class="kicks" id="pHome"></div></div>
+  <div class="col" style="align-self:center;font-size:15px;color:#94a3b8">PENALTIES</div>
+  <div class="col"><div class="lbl" id="pAwayLbl"></div><div class="kicks" id="pAway"></div></div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const matchId = location.pathname.split('/').pop();
+const $ = (s) => document.querySelector(s);
+let S = null, serverOffset = 0;
+const PERIOD_LABELS = { PRE:'',  '1H':'1st Half', HT:'Half Time', '2H':'2nd Half', FT:'Full Time',
+                        ET1:'Extra Time', ETB:'ET Break', ET2:'Extra Time', AET:'AET', PENS:'Pens' };
+
+const socket = io({ auth: { matchId } });
+socket.on('state', (msg) => { S = msg.state; serverOffset = msg.now - Date.now(); render(); });
+
+function render() {
+  const t = S.config.teams;
+  $('#bug').classList.add('show');
+  $('#homeStripe').style.background = t.home.color;
+  $('#awayStripe').style.background = t.away.color;
+  $('#homeShort').textContent = t.home.short;
+  $('#awayShort').textContent = t.away.short;
+  setCrest('#homeCrest', t.home.crest); setCrest('#awayCrest', t.away.crest);
+  $('#homeScore').textContent = S.score.home;
+  $('#awayScore').textContent = S.score.away;
+  $('#period').textContent = PERIOD_LABELS[S.period] ?? S.period;
+  $('#homeReds').innerHTML = '<span class="redcard"></span>'.repeat(S.cards.home.r);
+  $('#awayReds').innerHTML = '<span class="redcard"></span>'.repeat(S.cards.away.r);
+  const st = $('#stoppage');
+  st.style.display = S.stoppage ? 'block' : 'none';
+  st.textContent = `+${S.stoppage}`;
+
+  // goal lower-third (shows for 8s after a goal)
+  const gb = $('#goalbar');
+  if (S.lastGoal && (Date.now() + serverOffset) - S.lastGoal.at < 8000) {
+    const team = S.config.teams[S.lastGoal.team];
+    gb.innerHTML = `⚽ GOAL! ${escapeHtml(team.name.toUpperCase())}${S.lastGoal.name ? ' — ' + escapeHtml(S.lastGoal.name) + ' ' + S.lastGoal.minute + "'" : ''}`;
+    gb.classList.add('show');
+    clearTimeout(gb._t);
+    gb._t = setTimeout(() => gb.classList.remove('show'), 8000 - ((Date.now() + serverOffset) - S.lastGoal.at));
+  } else {
+    gb.classList.remove('show');
+  }
+
+  // card banner (yellow 5s, red 7s)
+  const cb = $('#cardbar');
+  if (S.lastCard) {
+    const elapsed = (Date.now() + serverOffset) - S.lastCard.at;
+    const dwell = S.lastCard.color === 'r' ? 7000 : 5000;
+    const lc = S.lastCard;
+    if (elapsed >= 0 && elapsed < dwell) {
+      const team = t[lc.team];
+      const who = lc.name ? escapeHtml(lc.name) : 'Player';
+      const label = lc.color === 'r' ? 'RED CARD' : 'YELLOW CARD';
+      const klass = lc.color === 'r' ? 'red' : 'yellow';
+      cb.className = `${klass} show`;
+      cb.innerHTML =
+        `<div class="icon">${lc.color === 'r' ? '🟥' : '🟨'}</div>` +
+        `<div class="text">` +
+          `<span class="main">${escapeHtml(team.short.toUpperCase())} — ${who} · ${lc.minute}'</span>` +
+          `<span class="sub">${label}</span>` +
+        `</div>`;
+      if (cb._key !== lc.at) {
+        cb._key = lc.at;
+        clearTimeout(cb._t);
+        cb._t = setTimeout(() => cb.classList.remove('show'), dwell - elapsed);
+      }
+    } else if (cb._key === lc.at) {
+      // dwell expired between renders — drop the .show class
+      cb.className = klass;
+      cb._key = null;
+    }
+  } else if (cb._key) {
+    cb.className = '';
+    cb._key = null;
+  }
+
+  // shootout
+  const pens = $('#pens');
+  if (S.period === 'PENS' && S.shootout) {
+    pens.classList.add('show');
+    $('#pHomeLbl').textContent = t.home.short; $('#pAwayLbl').textContent = t.away.short;
+    $('#pHome').innerHTML = S.shootout.home.map((k) => k === 'G' ? '<span class="g">●</span>' : '<span class="x">✕</span>').join('');
+    $('#pAway').innerHTML = S.shootout.away.map((k) => k === 'G' ? '<span class="g">●</span>' : '<span class="x">✕</span>').join('');
+  } else pens.classList.remove('show');
+}
+
+function setCrest(sel, url) {
+  const el = $(sel);
+  if (url) { el.src = url; el.style.display = ''; } else el.style.display = 'none';
+}
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+setInterval(() => {
+  if (!S) return;
+  const now = Date.now() + serverOffset;
+  const ms = S.clock.elapsedMs + (S.clock.running ? Math.max(0, now - S.clock.startedAt) : 0);
+  const mm = Math.floor(ms / 60000), ss = Math.floor((ms % 60000) / 1000);
+  $('#clock').textContent = `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+}, 200);
+</script>
+</body>
+</html>

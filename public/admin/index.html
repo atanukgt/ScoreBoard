@@ -1,0 +1,529 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scoreboard Live — Admin</title>
+<style>
+  :root {
+    --bg: #0f172a; --panel: #1e293b; --panel2: #273449; --line: #334155;
+    --text: #e2e8f0; --muted: #94a3b8; --accent: #38bdf8; --green: #34d399; --red: #f87171;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+         background: var(--bg); color: var(--text); }
+  header { display: flex; align-items: center; gap: 12px; padding: 14px 20px;
+           background: var(--panel); border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 18px; margin: 0; letter-spacing: .5px;
+              white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; }
+  header .spacer { flex: 1; }
+  main { max-width: 1000px; margin: 0 auto; padding: 20px; }
+  h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin: 28px 0 12px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 12px; }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 8px 0 4px; }
+  input, select, textarea, button {
+    font: inherit; color: var(--text); background: var(--panel2);
+    border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px;
+    max-width: 100%; min-width: 0;
+  }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); border-color: transparent; }
+  input[type="text"], input[type="number"], input[type="password"], input[type="url"], input[type="email"] {
+    width: 100%;
+  }
+  input[type="file"] { width: 100%; max-width: 100%; font-size: 13px; padding: 6px 8px; }
+  input[type="color"] { min-width: 60px; max-width: 80px; height: 38px; padding: 2px; }
+  select { width: 100%; }
+  textarea { width: 100%; min-height: 90px; resize: vertical; }
+  button { cursor: pointer; }
+  button.primary { background: var(--accent); color: #082f49; font-weight: 700; border: none; }
+  button.danger { background: transparent; color: var(--red); border-color: var(--red); }
+  button.ghost { background: transparent; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
+  .row > div { flex: 1; min-width: 0; }
+  .row > div.fixed, .row > div[style*="width:"] { flex: 0 0 auto; }
+  .team-item, .match-item { display: flex; gap: 10px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .team-item:last-child, .match-item:last-child { border-bottom: none; }
+  .crest { width: 36px; height: 36px; border-radius: 50%; background: var(--panel2); object-fit: contain;
+           display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; flex: none; }
+  .dot { width: 14px; height: 14px; border-radius: 50%; flex: none; border: 1px solid rgba(255,255,255,.3); }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 20px; background: var(--panel2); color: var(--muted); text-transform: uppercase; letter-spacing: 1px; flex: none; }
+  .badge.cricket { color: #fbbf24; } .badge.football { color: var(--green); }
+  .links { display: flex; gap: 6px; flex-wrap: wrap; flex: 1 0 100%; margin-top: 6px; }
+  .links button, .links a { font-size: 12px; padding: 6px 10px; text-decoration: none; color: var(--accent); background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; }
+  .item-name { flex: 1 1 100px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .item-name strong { font-weight: 700; }
+  .item-actions { display: flex; flex-wrap: wrap; gap: 6px; flex: 1 1 100%; margin-top: 4px; }
+  .item-actions button, .item-actions a { font-size: 12px; padding: 6px 10px; }
+  .item-actions button { font: inherit; border: 1px solid var(--line); background: var(--panel2); color: var(--text);
+                        border-radius: 6px; cursor: pointer; }
+  .item-actions button.danger { color: var(--red); border-color: var(--red); background: transparent; }
+  .item-actions a { text-decoration: none; color: var(--accent); background: var(--panel2);
+                    border: 1px solid var(--line); border-radius: 6px; }
+  .muted { color: var(--muted); font-size: 13px; }
+  /* Mobile layout fixes */
+  @media (max-width: 600px) {
+    header { padding: 10px 14px; gap: 8px; }
+    header h1 { font-size: 15px; }
+    main { padding: 14px; }
+    .card { padding: 12px; }
+    .row { gap: 8px; }
+    h2 { font-size: 13px; margin: 22px 0 10px; }
+    .item-actions { gap: 5px; }
+    .item-actions button, .item-actions a { font-size: 11px; padding: 5px 8px; }
+  }
+  @media (max-width: 380px) {
+    header h1 { font-size: 14px; letter-spacing: 0; }
+    header { padding: 10px 12px; }
+    main { padding: 10px; }
+    .card { padding: 10px; }
+    .item-actions button, .item-actions a { font-size: 10px; padding: 4px 7px; }
+    #logoutBtn { padding: 6px 10px; font-size: 12px; }
+  }
+  #login { max-width: 340px; margin: 12vh auto; }
+  #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+           background: var(--green); color: #052e1c; font-weight: 700; padding: 10px 18px;
+           border-radius: 30px; opacity: 0; transition: opacity .25s; pointer-events: none; }
+  .grow { flex: 1; min-width: 160px; }
+  details summary { cursor: pointer; color: var(--accent); font-size: 13px; margin-top: 6px; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🏏⚽ Scoreboard Live</h1>
+  <div class="spacer"></div>
+  <button id="logoutBtn" class="ghost hidden">Log out</button>
+</header>
+
+<div id="login" class="card hidden">
+  <h2 style="margin-top:0">Admin login</h2>
+  <label>Password</label>
+  <input type="password" id="pw" style="width:100%">
+  <div style="margin-top:12px"><button class="primary" id="loginBtn" style="width:100%">Log in</button></div>
+  <p class="muted" id="loginMsg"></p>
+</div>
+
+<main id="app" class="hidden">
+  <h2>Create match</h2>
+  <div class="card">
+    <div class="row">
+      <div><label>Sport</label>
+        <select id="mSport">
+          <option value="football">Football</option>
+          <option value="cricket">Cricket</option>
+        </select>
+      </div>
+      <div class="grow"><label>Title (optional)</label><input id="mTitle" placeholder="Sunday League Final"></div>
+    </div>
+    <div class="row">
+      <div><label>Home team</label><select id="mHome"></select></div>
+      <div><label>Away team</label><select id="mAway"></select></div>
+    </div>
+    <div class="row" id="cricketOpts" style="display:none">
+      <div><label>Overs / innings</label><input type="number" id="mOvers" value="20" min="1" max="50"></div>
+      <div><label>Players / side</label><input type="number" id="mPlayers" value="11" min="2" max="11"></div>
+      <div><label>Toss won by</label><select id="mTossWinner"><option value="home">Home</option><option value="away">Away</option></select></div>
+      <div><label>Elected to</label><select id="mTossDecision"><option value="bat">Bat</option><option value="bowl">Bowl</option></select></div>
+    </div>
+    <div class="row" id="footballOpts">
+      <div><label>Minutes per half</label><input type="number" id="mHalf" value="45" min="1" max="60"></div>
+    </div>
+    <div style="margin-top:14px"><button class="primary" id="createMatch">Create match</button> <span class="muted" id="createMsg"></span></div>
+  </div>
+
+  <h2>Matches</h2>
+  <div class="card" id="matchList"><p class="muted">No matches yet.</p></div>
+
+  <h2>Teams</h2>
+  <div class="card">
+    <div class="row">
+      <div class="grow"><label>Team name</label><input id="tName" placeholder="Lions CC"></div>
+      <div><label>Short (4)</label><input id="tShort" maxlength="4" placeholder="LIO" style="width:90px"></div>
+      <div><label>Colour</label><input type="color" id="tColor" value="#1d4ed8" style="height:38px;width:60px;padding:2px"></div>
+      <div><button class="primary" id="addTeam">Add team</button></div>
+    </div>
+  </div>
+  <div class="card" id="teamList"><p class="muted">No teams yet.</p></div>
+
+  <h2>Tournaments</h2>
+  <div class="card">
+    <div class="row">
+      <div class="grow"><label>Tournament name</label><input id="tnName" placeholder="Kumarghat League"></div>
+      <div><label>Sport</label>
+        <select id="tnSport">
+          <option value="football">Football</option>
+          <option value="cricket">Cricket</option>
+        </select>
+      </div>
+      <div><button class="primary" id="addTournament">Create tournament</button></div>
+    </div>
+  </div>
+  <div class="card" id="tournamentList"><p class="muted">No tournaments yet.</p></div>
+
+  <h2>Sponsors</h2>
+  <div class="card">
+    <div class="row">
+      <div class="grow"><label>Name</label><input id="spName" placeholder="DC Auto Parts"></div>
+      <div><label>Image (≤ 2 MB)</label><input type="file" id="spFile" accept="image/png,image/jpeg,image/svg+xml,image/webp,image/gif"></div>
+      <div class="grow"><label>Link URL (optional)</label><input id="spLink" placeholder="https://example.com"></div>
+    </div>
+    <div class="row">
+      <div><label>Position</label>
+        <select id="spPosition">
+          <option value="top-left">top-left</option>
+          <option value="top-right">top-right</option>
+          <option value="bottom-left">bottom-left</option>
+          <option value="bottom-right">bottom-right</option>
+          <option value="top-banner">top-banner</option>
+          <option value="center-banner">center-banner</option>
+        </select>
+      </div>
+      <div><label>Interval (seconds)</label><input type="number" id="spInterval" value="8" min="1" max="600"></div>
+      <div><label>&nbsp;</label><button class="primary" id="addSponsor">Add sponsor</button></div>
+    </div>
+  </div>
+  <div class="card" id="sponsorList"><p class="muted">No sponsors yet.</p></div>
+</main>
+
+<div id="toast"></div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const api = async (url, opts = {}) => {
+  const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...opts });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+};
+const toast = (msg) => {
+  const t = $('#toast'); t.textContent = msg; t.style.opacity = 1;
+  setTimeout(() => (t.style.opacity = 0), 1800);
+};
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+let TEAMS = [];
+
+async function boot() {
+  const me = await api('/api/me');
+  $('#login').classList.toggle('hidden', me.admin);
+  $('#app').classList.toggle('hidden', !me.admin);
+  $('#logoutBtn').classList.toggle('hidden', !me.admin);
+  if (me.admin) {
+    await refreshTeams();
+    await refreshMatches();
+    await refreshTournaments();
+    await refreshSponsors();
+  }
+}
+
+$('#loginBtn').onclick = async () => {
+  try {
+    await api('/api/login', { method: 'POST', body: JSON.stringify({ password: $('#pw').value }) });
+    boot();
+  } catch (e) { $('#loginMsg').textContent = e.message; }
+};
+$('#pw').addEventListener('keydown', (e) => e.key === 'Enter' && $('#loginBtn').click());
+$('#logoutBtn').onclick = async () => { await api('/api/logout', { method: 'POST' }); location.reload(); };
+
+// ---- teams ----
+async function refreshTeams() {
+  TEAMS = await api('/api/teams');
+  const sel = TEAMS.map((t) => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
+  $('#mHome').innerHTML = sel; $('#mAway').innerHTML = sel;
+  if (TEAMS.length > 1) $('#mAway').selectedIndex = 1;
+  $('#teamList').innerHTML = TEAMS.length ? TEAMS.map(teamRow).join('') : '<p class="muted">No teams yet.</p>';
+}
+
+function teamRow(t) {
+  const crest = t.crest_path
+    ? `<img class="crest" src="/uploads/${esc(t.crest_path)}" alt="">`
+    : `<div class="crest">${esc(t.short_name)}</div>`;
+  return `<div class="team-item" data-id="${t.id}">
+    ${crest}
+    <span class="dot" style="background:${esc(t.color)}"></span>
+    <div class="item-name"><strong>${esc(t.name)}</strong> <span class="muted">${esc(t.short_name)} · ${t.players.length} players</span></div>
+    <div class="item-actions">
+      <button class="ghost" onclick="editTeam(${t.id})">Edit</button>
+      <button class="danger" onclick="delTeam(${t.id})">Delete</button>
+    </div>
+    <div class="hidden" id="edit-${t.id}" style="width:100%">
+      <div class="row">
+        <div class="grow"><label>Name</label><input id="en-${t.id}" value="${esc(t.name)}"></div>
+        <div><label>Short</label><input id="es-${t.id}" maxlength="4" value="${esc(t.short_name)}" style="width:80px"></div>
+        <div><label>Colour</label><input type="color" id="ec-${t.id}" value="${esc(t.color)}" style="height:38px;width:60px;padding:2px"></div>
+        <div><label>Crest</label><input type="file" id="ef-${t.id}" accept="image/png,image/jpeg,image/svg+xml,image/webp"></div>
+      </div>
+      <label>Players (one per line — used for cricket line-ups)</label>
+      <textarea id="ep-${t.id}">${esc(t.players.join('\n'))}</textarea>
+      <div style="margin-top:8px"><button class="primary" onclick="saveTeam(${t.id})">Save</button></div>
+    </div>
+  </div>`;
+}
+
+window.editTeam = (id) => $(`#edit-${id}`).classList.toggle('hidden');
+window.delTeam = async (id) => {
+  if (!confirm('Delete this team?')) return;
+  await api(`/api/teams/${id}`, { method: 'DELETE' });
+  refreshTeams();
+};
+window.saveTeam = async (id) => {
+  await api(`/api/teams/${id}`, { method: 'PUT', body: JSON.stringify({
+    name: $(`#en-${id}`).value.trim(),
+    short_name: $(`#es-${id}`).value.trim(),
+    color: $(`#ec-${id}`).value,
+    players: $(`#ep-${id}`).value.split('\n').map((s) => s.trim()).filter(Boolean),
+  })});
+  const file = $(`#ef-${id}`).files[0];
+  if (file) {
+    const dataUrl = await new Promise((ok, err) => {
+      const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = err; r.readAsDataURL(file);
+    });
+    await api(`/api/teams/${id}/crest`, { method: 'POST', body: JSON.stringify({ dataUrl }) });
+  }
+  toast('Team saved'); refreshTeams();
+};
+
+$('#addTeam').onclick = async () => {
+  const name = $('#tName').value.trim(), short = $('#tShort').value.trim();
+  if (!name || !short) return toast('Name and short code required');
+  await api('/api/teams', { method: 'POST', body: JSON.stringify({ name, short_name: short, color: $('#tColor').value }) });
+  $('#tName').value = ''; $('#tShort').value = '';
+  toast('Team added'); refreshTeams();
+};
+
+// ---- matches ----
+$('#mSport').onchange = () => {
+  const cricket = $('#mSport').value === 'cricket';
+  $('#cricketOpts').style.display = cricket ? '' : 'none';
+  $('#footballOpts').style.display = cricket ? 'none' : '';
+};
+
+$('#createMatch').onclick = async () => {
+  try {
+    const sport = $('#mSport').value;
+    const body = {
+      sport,
+      title: $('#mTitle').value.trim(),
+      home_team_id: +$('#mHome').value,
+      away_team_id: +$('#mAway').value,
+      options: sport === 'cricket'
+        ? { oversPerInnings: +$('#mOvers').value, playersPerSide: +$('#mPlayers').value,
+            tossWinner: $('#mTossWinner').value, tossDecision: $('#mTossDecision').value }
+        : { halfMinutes: +$('#mHalf').value },
+    };
+    if (body.home_team_id === body.away_team_id) throw new Error('Pick two different teams');
+    await api('/api/matches', { method: 'POST', body: JSON.stringify(body) });
+    // Reset form so the next match doesn't inherit title / wrong team
+    $('#mTitle').value = '';
+    $('#createMsg').textContent = '';
+    // Default home/away: first team home, second team away (if available)
+    if (TEAMS.length >= 2) { $('#mHome').selectedIndex = 0; $('#mAway').selectedIndex = 1; }
+    toast('Match created'); refreshMatches();
+  } catch (e) { $('#createMsg').textContent = e.message; }
+};
+
+async function refreshMatches() {
+  const list = await api('/api/matches');
+  $('#matchList').innerHTML = list.length ? list.map(matchRow).join('') : '<p class="muted">No matches yet.</p>';
+}
+
+function matchRow(m) {
+  const controlUrl = `${location.origin}/control/${m.id}?token=${m.control_token}`;
+  const overlayUrl = `${location.origin}/overlay/${m.id}`;
+  return `<div class="match-item">
+    <span class="badge ${m.sport}">${m.sport}</span>
+    <div class="item-name">
+      <strong>${esc(m.home)} v ${esc(m.away)}</strong>
+      <span class="muted">${m.title ? esc(m.title) + ' · ' : ''}${new Date(m.created_at).toLocaleDateString()}</span>
+    </div>
+    <div class="item-actions">
+      <a href="${controlUrl}" target="_blank">Open</a>
+      <button onclick="copyText('${controlUrl}')">Control link</button>
+      <button onclick="copyText('${overlayUrl}')">Overlay link</button>
+      <a href="${overlayUrl}" target="_blank">Preview</a>
+      <button class="danger" onclick="delMatch('${m.id}')">Delete</button>
+    </div>
+  </div>`;
+}
+
+window.copyText = async (t) => { await navigator.clipboard.writeText(t); toast('Copied!'); };
+window.delMatch = async (id) => {
+  if (!confirm('Delete this match and its full scoring history?')) return;
+  await api(`/api/matches/${id}`, { method: 'DELETE' });
+  refreshMatches();
+};
+
+// ---- tournaments ----
+async function refreshTournaments() {
+  const list = await api('/api/tournaments');
+  $('#tournamentList').innerHTML = list.length
+    ? list.map(tournamentRow).join('')
+    : '<p class="muted">No tournaments yet.</p>';
+}
+
+function tournamentRow(t) {
+  const overlayUrl = `${location.origin}/overlay/tournament/${t.id}`;
+  return `<div class="match-item" data-id="${t.id}">
+    <span class="badge ${t.sport}">${t.sport}</span>
+    <div class="item-name">
+      <strong>${esc(t.name)}</strong>
+      <span class="muted">${t.team_count} teams · ${t.match_count} matches · ${esc(t.status)}</span>
+    </div>
+    <div class="item-actions">
+      <button onclick="viewStandings(${t.id}, '${esc(t.name)}')">Standings</button>
+      <a href="${overlayUrl}" target="_blank">Open overlay</a>
+      <button onclick="copyText('${overlayUrl}')">Copy overlay link</button>
+      <button onclick="toggleAddTeams(${t.id})">Add teams</button>
+      <button onclick="toggleAddMatch(${t.id})">Schedule match</button>
+      <button class="danger" onclick="delTournament(${t.id})">Delete</button>
+    </div>
+    <div class="hidden" id="addTeams-${t.id}" style="width:100%">
+      <label>Pick teams</label>
+      <select id="atSel-${t.id}" multiple size="6" style="min-width:260px">
+        ${TEAMS.map((team) => `<option value="${team.id}">${esc(team.name)}</option>`).join('')}
+      </select>
+      <div style="margin-top:8px"><button class="primary" onclick="saveAddTeams(${t.id})">Save teams</button></div>
+    </div>
+    <div class="hidden" id="addMatch-${t.id}" style="width:100%">
+      <div class="row">
+        <div class="grow"><label>Existing match id</label><input id="amId-${t.id}" placeholder="paste match id from Matches section"></div>
+        <div><label>Round</label><input type="number" id="amRound-${t.id}" value="1" min="1"></div>
+        <div><label>Group (optional)</label><input id="amGroup-${t.id}" placeholder="A"></div>
+      </div>
+      <div style="margin-top:8px"><button class="primary" onclick="saveAddMatch(${t.id})">Attach match</button></div>
+    </div>
+    <div class="hidden" id="stand-${t.id}" style="width:100%"></div>
+  </div>`;
+}
+
+window.addTournament = async () => {
+  const name = $('#tnName').value.trim();
+  const sport = $('#tnSport').value;
+  if (!name) return toast('Name required');
+  await api('/api/tournaments', { method: 'POST', body: JSON.stringify({ name, sport }) });
+  $('#tnName').value = '';
+  toast('Tournament created');
+  refreshTournaments();
+};
+$('#addTournament').onclick = window.addTournament;
+
+window.delTournament = async (id) => {
+  if (!confirm('Delete this tournament?')) return;
+  await api(`/api/tournaments/${id}`, { method: 'DELETE' });
+  refreshTournaments();
+};
+
+window.toggleAddTeams = (id) => $(`#addTeams-${id}`).classList.toggle('hidden');
+window.toggleAddMatch = (id) => $(`#addMatch-${id}`).classList.toggle('hidden');
+
+window.saveAddTeams = async (id) => {
+  const sel = $(`#atSel-${id}`);
+  const team_ids = [...sel.selectedOptions].map((o) => +o.value).filter(Number.isInteger);
+  if (!team_ids.length) return toast('Pick at least one team');
+  await api(`/api/tournaments/${id}/teams`, { method: 'POST', body: JSON.stringify({ team_ids }) });
+  toast('Teams added');
+  refreshTournaments();
+};
+
+window.saveAddMatch = async (id) => {
+  const match_id = $(`#amId-${id}`).value.trim();
+  const round = +$('#amRound-' + id).value || 1;
+  const group_name = $('#amGroup-' + id).value.trim() || null;
+  if (!match_id) return toast('Match id required');
+  await api(`/api/tournaments/${id}/matches`, {
+    method: 'POST',
+    body: JSON.stringify({ match_id, round, group_name }),
+  });
+  toast('Match scheduled');
+  refreshTournaments();
+};
+
+window.viewStandings = async (id, name) => {
+  const box = $(`#stand-${id}`);
+  if (!box.classList.contains('hidden')) { box.classList.add('hidden'); return; }
+  const rows = await api(`/api/tournaments/${id}/standings`);
+  box.classList.remove('hidden');
+  if (!Array.isArray(rows) || !rows.length) {
+    box.innerHTML = '<p class="muted">No standings yet — schedule and complete some matches first.</p>';
+    return;
+  }
+  const headers = ['Pos', 'Team', 'P', 'W', 'D', 'L', 'GF', 'GA', 'GD', 'Pts'];
+  const html = ['<table style="width:100%;border-collapse:collapse;margin-top:8px;font-size:13px">'];
+  html.push('<thead><tr>' + headers.map((h) => `<th style="text-align:left;padding:6px 8px;color:var(--muted);border-bottom:1px solid var(--line)">${h}</th>`).join('') + '</tr></thead><tbody>');
+  rows.forEach((r, i) => {
+    html.push(`<tr>
+      <td style="padding:6px 8px;border-bottom:1px solid var(--line)">${i + 1}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid var(--line)"><span class="dot" style="background:${esc(r.color)};display:inline-block;margin-right:6px"></span>${esc(r.name)}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid var(--line)">${r.played}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid var(--line)">${r.wins}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid var(--line)">${r.draws}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid var(--line)">${r.losses}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid var(--line)">${r.gf}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid var(--line)">${r.ga}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid var(--line)">${r.gd > 0 ? '+' + r.gd : r.gd}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid var(--line);color:#fbbf24;font-weight:700">${r.points}</td>
+    </tr>`);
+  });
+  html.push('</tbody></table>');
+  box.innerHTML = `<h3 style="margin:10px 0 4px;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Standings — ${esc(name)}</h3>${html.join('')}`;
+};
+
+// ---- sponsors ----
+async function refreshSponsors() {
+  const list = await api('/api/sponsors');
+  $('#sponsorList').innerHTML = list.length
+    ? list.map(sponsorRow).join('')
+    : '<p class="muted">No sponsors yet.</p>';
+}
+
+function sponsorRow(s) {
+  const imgUrl = `/uploads/${esc(s.image_path)}`;
+  return `<div class="match-item" data-id="${s.id}">
+    <img class="crest" src="${imgUrl}" alt="">
+    <div class="item-name">
+      <strong>${esc(s.name)}</strong>
+      <span class="muted">${esc(s.position)} · ${s.interval_seconds}s · ${s.active ? 'active' : 'inactive'}${s.link ? ' · link' : ''}</span>
+    </div>
+    <div class="item-actions">
+      <button onclick="toggleSponsor(${s.id}, ${s.active ? 0 : 1})">${s.active ? 'Disable' : 'Enable'}</button>
+      <button class="danger" onclick="delSponsor(${s.id})">Delete</button>
+    </div>
+  </div>`;
+}
+
+window.addSponsor = async () => {
+  const name = $('#spName').value.trim();
+  const file = $('#spFile').files[0];
+  const link = $('#spLink').value.trim();
+  const position = $('#spPosition').value;
+  const interval_seconds = +$('#spInterval').value || 8;
+  if (!name) return toast('Name required');
+  if (!file) return toast('Pick an image');
+  const dataUrl = await new Promise((ok, err) => {
+    const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = err; r.readAsDataURL(file);
+  });
+  await api('/api/sponsors', {
+    method: 'POST',
+    body: JSON.stringify({ name, dataUrl, link: link || null, position, interval_seconds }),
+  });
+  $('#spName').value = ''; $('#spFile').value = ''; $('#spLink').value = '';
+  toast('Sponsor added');
+  refreshSponsors();
+};
+$('#addSponsor').onclick = window.addSponsor;
+
+window.delSponsor = async (id) => {
+  if (!confirm('Delete this sponsor?')) return;
+  await api(`/api/sponsors/${id}`, { method: 'DELETE' });
+  refreshSponsors();
+};
+
+window.toggleSponsor = async (id, active) => {
+  await api(`/api/sponsors/${id}`, { method: 'PUT', body: JSON.stringify({ active }) });
+  refreshSponsors();
+};
+
+boot();
+</script>
+</body>
+</html>

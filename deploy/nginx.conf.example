@@ -1,0 +1,74 @@
+# scoreboard-live — nginx reverse-proxy example
+#
+# Place this file at /etc/nginx/sites-available/scoreboard.conf (Debian/Ubuntu)
+# or /etc/nginx/conf.d/scoreboard.conf (RHEL/CentOS) on your reverse proxy.
+# Adjust `server_name`, the cert paths, and the listen ports to your setup.
+#
+# What it does:
+#   - Terminates TLS (Let's Encrypt)
+#   - Reverse-proxies plain HTTP to the Node app on 127.0.0.1:3000
+#   - Forwards the WebSocket upgrade for Socket.IO (real-time overlay)
+#   - Sets a long read timeout so the overlay socket doesn't get killed
+#     during quiet stretches of the match.
+
+# Redirect HTTP -> HTTPS
+server {
+    listen 80;
+    listen [::]:80;
+    server_name scoreboard.example.com;
+
+    # ACME http-01 challenge (certbot) must stay reachable
+    location /.well-known/acme-challenge/ {
+        root /var/www/letsencrypt;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name scoreboard.example.com;
+
+    # ---- TLS (managed by certbot — DO NOT edit these by hand) ----
+    ssl_certificate     /etc/letsencrypt/live/scoreboard.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/scoreboard.example.com/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    # ---- Security headers (sane defaults; OBS browser-source is a normal
+    # browser so we can keep the usual hardening without breaking it) ----
+    add_header X-Content-Type-Options nosniff;
+    add_header X-Frame-Options SAMEORIGIN;
+    add_header Referrer-Policy strict-origin-when-cross-origin;
+
+    # ---- Body size (admin can upload a 2 MB crest as base64) ----
+    client_max_body_size 3m;
+
+    # ---- Reverse proxy to the Node app ----
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+
+        proxy_http_version 1.1;
+
+        # WebSocket upgrade headers (REQUIRED for Socket.IO)
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        # Pass the real client info to the app
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Long-lived WebSocket: keep idle connections open through quiet periods
+        proxy_read_timeout  3600s;
+        proxy_send_timeout  60s;
+        proxy_connect_timeout 10s;
+
+        # Disable buffering for the WS upgrade itself
+        proxy_buffering off;
+    }
+}

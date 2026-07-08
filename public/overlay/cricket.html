@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Cricket Overlay</title>
+<style>
+  /* Transparent page — designed for a 1920x1080 OBS browser source.
+     ?layout=bug  -> compact top-left strip
+     ?layout=full -> lower-third scorecard (default) */
+  html, body { margin:0; padding:0; background:transparent; overflow:hidden;
+               font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif; }
+  * { box-sizing:border-box; }
+  .num { font-variant-numeric:tabular-nums; }
+
+  /* ---- compact bug ---- */
+  #bug { position:absolute; top:40px; left:40px; display:none; align-items:stretch; height:54px;
+         border-radius:10px; overflow:hidden; box-shadow:0 4px 18px rgba(0,0,0,.45); }
+  #bug.show { display:flex; }
+  #bug .stripe { width:6px; }
+  #bug .main { display:flex; align-items:center; gap:12px; padding:0 16px;
+               background:linear-gradient(180deg,#1b2436,#111827); color:#fff; }
+  #bug .team { font-weight:800; font-size:20px; letter-spacing:1px; }
+  #bug .score { font-weight:900; font-size:24px; }
+  #bug .overs { color:#94a3b8; font-size:15px; font-weight:600; }
+  #bug .chase { display:flex; flex-direction:column; justify-content:center; padding:0 14px;
+                background:linear-gradient(180deg,#0d1b12,#052e16); color:#86efac; font-size:12px;
+                font-weight:700; line-height:1.35; }
+
+  /* ---- full lower third ---- */
+  #full { position:absolute; left:50%; bottom:46px; transform:translateX(-50%); width:1240px; display:none; }
+  #full.show { display:block; }
+  #full .bar { display:flex; align-items:stretch; height:62px; border-radius:12px 12px 0 0; overflow:hidden;
+               box-shadow:0 6px 24px rgba(0,0,0,.5); }
+  #full .stripe { width:8px; }
+  #full .teamcell { display:flex; align-items:center; gap:12px; padding:0 20px;
+                    background:linear-gradient(180deg,#1b2436,#111827); color:#fff; min-width:260px; }
+  #full .crest { width:38px; height:38px; object-fit:contain; }
+  #full .tname { font-weight:800; font-size:24px; letter-spacing:.5px; }
+  #full .bigscore { display:flex; align-items:center; gap:10px; background:#fff; color:#0b1220;
+                    padding:0 22px; font-weight:900; font-size:30px; }
+  #full .bigscore .ov { font-size:17px; font-weight:700; color:#475569; }
+  #full .mid { flex:1; display:flex; align-items:center; justify-content:center; gap:8px;
+               background:linear-gradient(180deg,#141c2e,#0c1322); }
+  #full .ballrow { display:flex; gap:6px; }
+  #full .ball { min-width:30px; height:30px; padding:0 4px; border-radius:50%; background:#273449; color:#e2e8f0;
+                display:inline-flex; align-items:center; justify-content:center; font-size:13px; font-weight:800; }
+  #full .ball.w { background:#dc2626; color:#fff; }
+  #full .ball.b4 { background:#0ea5e9; color:#04263a; }
+  #full .ball.b6 { background:#22c55e; color:#052e16; }
+  #full .chasecell { display:flex; flex-direction:column; justify-content:center; padding:0 18px;
+                     background:linear-gradient(180deg,#0d1b12,#052e16); color:#86efac;
+                     font-size:13px; font-weight:700; line-height:1.4; min-width:170px; }
+  #full .sub { display:flex; background:rgba(8,12,22,.92); color:#e2e8f0; border-radius:0 0 12px 12px;
+               padding:10px 22px; gap:30px; font-size:16px; box-shadow:0 6px 24px rgba(0,0,0,.5); }
+  #full .batcol { flex:1.2; display:flex; flex-direction:column; gap:3px; }
+  #full .bowlcol { flex:1; display:flex; flex-direction:column; gap:3px; border-left:1px solid #273449; padding-left:26px; }
+  #full .line { display:flex; justify-content:space-between; }
+  #full .line .nm { font-weight:700; }
+  #full .line .nm .star { color:#38bdf8; }
+  #full .lbl { font-size:11px; color:#64748b; text-transform:uppercase; letter-spacing:1.5px; }
+
+  /* ---- flash banner (FOUR/SIX/WICKET) ---- */
+  #flash { position:absolute; left:50%; top:38%; transform:translate(-50%,-50%) scale(.6);
+           font-size:84px; font-weight:900; letter-spacing:4px; color:#fff; opacity:0; white-space:nowrap;
+           text-shadow:0 4px 30px rgba(0,0,0,.65); transition:all .3s cubic-bezier(.2,.9,.3,1.4); }
+  #flash.show { opacity:1; transform:translate(-50%,-50%) scale(1); }
+  #flash.k4 { color:#38bdf8; } #flash.k6 { color:#4ade80; } #flash.kW { color:#f87171; }
+
+  /* ---- banner (innings break / result) ---- */
+  #banner { position:absolute; left:50%; bottom:140px; transform:translateX(-50%);
+            background:rgba(8,12,22,.94); color:#fff; padding:16px 40px; border-radius:12px;
+            font-size:26px; font-weight:800; display:none; box-shadow:0 6px 24px rgba(0,0,0,.5);
+            text-align:center; }
+  #banner.show { display:block; }
+  #banner .small { display:block; font-size:15px; color:#94a3b8; font-weight:600; margin-top:4px; }
+</style>
+</head>
+<body>
+<div id="bug">
+  <div class="stripe" id="bugStripe"></div>
+  <div class="main">
+    <span class="team" id="bugTeam"></span>
+    <span class="score num" id="bugScore"></span>
+    <span class="overs num" id="bugOvers"></span>
+  </div>
+  <div class="chase num" id="bugChase" style="display:none"></div>
+</div>
+
+<div id="full">
+  <div class="bar">
+    <div class="stripe" id="fStripe"></div>
+    <div class="teamcell"><img class="crest" id="fCrest" style="display:none"><span class="tname" id="fTeam"></span></div>
+    <div class="bigscore num"><span id="fScore"></span><span class="ov" id="fOvers"></span></div>
+    <div class="mid"><div class="ballrow" id="fBalls"></div></div>
+    <div class="chasecell num" id="fChase" style="display:none"></div>
+  </div>
+  <div class="sub">
+    <div class="batcol">
+      <span class="lbl">Batting</span>
+      <div class="line num" id="fBat1"></div>
+      <div class="line num" id="fBat2"></div>
+    </div>
+    <div class="bowlcol">
+      <span class="lbl">Bowling · <span id="fCrr"></span></span>
+      <div class="line num" id="fBowl"></div>
+      <div class="line num" id="fExtras" style="color:#94a3b8;font-size:13px"></div>
+    </div>
+  </div>
+</div>
+
+<div id="flash"></div>
+<div id="banner"></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const matchId = location.pathname.split('/').pop();
+const layout = new URLSearchParams(location.search).get('layout') === 'bug' ? 'bug' : 'full';
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let S = null, serverOffset = 0;
+
+const socket = io({ auth: { matchId } });
+socket.on('state', (msg) => { S = msg.state; serverOffset = msg.now - Date.now(); render(); });
+
+const overStr = (b) => `${Math.floor(b / 6)}.${b % 6}`;
+const crr = (i) => (i.balls ? (i.runs / (i.balls / 6)).toFixed(2) : '0.00');
+
+function render() {
+  $('#bug').classList.remove('show'); $('#full').classList.remove('show'); $('#banner').classList.remove('show');
+  if (S.phase === 'setup') return renderBanner('Match starting soon…', matchTitle());
+  const i = S.innings[S.currentInnings];
+  if (S.phase === 'inningsBreak') {
+    const t = S.config.teams[i.battingTeam];
+    renderBanner(`${esc(t.name)} ${i.runs}/${i.wickets} (${overStr(i.balls)})`,
+                 `Innings break — target ${S.target}`);
+  }
+  if (S.phase === 'finished') renderBanner(`🏆 ${esc(S.result)}`, matchTitle());
+  if (!i) return;
+  if (layout === 'bug') renderBug(i); else renderFull(i);
+  renderFlash();
+}
+
+function matchTitle() {
+  const t = S.config.teams;
+  return `${esc(t.home.name)} v ${esc(t.away.name)} · ${S.config.oversPerInnings} overs`;
+}
+
+function chaseText(i, compact) {
+  if (S.currentInnings !== 1 || S.target == null) return null;
+  const need = Math.max(0, S.target - i.runs);
+  const ballsLeft = Math.max(0, S.config.oversPerInnings * 6 - i.balls);
+  const rrr = ballsLeft ? ((need / ballsLeft) * 6).toFixed(2) : '—';
+  return compact
+    ? `Target ${S.target}<br>Need ${need} off ${ballsLeft}`
+    : `Target ${S.target}<br>Need ${need} off ${ballsLeft}<br>RRR ${rrr}`;
+}
+
+function renderBug(i) {
+  const t = S.config.teams[i.battingTeam];
+  $('#bug').classList.add('show');
+  $('#bugStripe').style.background = t.color;
+  $('#bugTeam').textContent = t.short;
+  $('#bugScore').textContent = `${i.runs}/${i.wickets}`;
+  $('#bugOvers').textContent = `(${overStr(i.balls)}/${S.config.oversPerInnings})`;
+  const ch = chaseText(i, true);
+  $('#bugChase').style.display = ch ? 'flex' : 'none';
+  if (ch) $('#bugChase').innerHTML = ch;
+}
+
+function renderFull(i) {
+  const t = S.config.teams[i.battingTeam];
+  $('#full').classList.add('show');
+  $('#fStripe').style.background = t.color;
+  $('#fTeam').textContent = t.name;
+  const crest = $('#fCrest');
+  if (t.crest) { crest.src = t.crest; crest.style.display = ''; } else crest.style.display = 'none';
+  $('#fScore').textContent = `${i.runs}/${i.wickets}`;
+  $('#fOvers').textContent = `(${overStr(i.balls)}/${S.config.oversPerInnings} ov)`;
+  $('#fBalls').innerHTML = i.thisOver.slice(-9).map((x) => {
+    const cls = x.includes('W') ? 'w' : x === '4' ? 'b4' : x === '6' ? 'b6' : '';
+    return `<span class="ball ${cls}">${esc(x)}</span>`;
+  }).join('') || '<span style="color:#475569;font-size:13px;font-weight:700">NEW OVER</span>';
+  const ch = chaseText(i, false);
+  $('#fChase').style.display = ch ? 'flex' : 'none';
+  if (ch) $('#fChase').innerHTML = ch;
+
+  const bat = (idx, el) => {
+    const b = i.batsmen[idx];
+    el.innerHTML = b
+      ? `<span class="nm">${esc(b.name)}${idx === i.striker ? '<span class="star"> *</span>' : ''}</span>
+         <span>${b.runs} (${b.balls})</span>`
+      : '<span class="nm" style="color:#64748b">—</span>';
+  };
+  bat(i.striker, $('#fBat1'));
+  bat(i.nonStriker, $('#fBat2'));
+  const bw = i.bowlers[i.bowler];
+  $('#fBowl').innerHTML = bw
+    ? `<span class="nm">${esc(bw.name)}</span><span>${overStr(bw.balls)}-${bw.maidens}-${bw.runs}-${bw.wickets}</span>`
+    : '';
+  const ex = i.extras;
+  $('#fExtras').innerHTML = `<span>Extras</span><span>${ex.wd + ex.nb + ex.b + ex.lb} (wd ${ex.wd}, nb ${ex.nb}, b ${ex.b}, lb ${ex.lb})</span>`;
+  $('#fCrr').textContent = `CRR ${crr(i)}`;
+}
+
+function renderFlash() {
+  const f = $('#flash');
+  if (S.flash && (Date.now() + serverOffset) - S.flash.at < 3500) {
+    f.textContent = S.flash.text;
+    f.className = `show k${S.flash.kind}`;
+    clearTimeout(f._t);
+    f._t = setTimeout(() => { f.className = ''; }, 3500 - ((Date.now() + serverOffset) - S.flash.at));
+  } else f.className = '';
+}
+
+function renderBanner(main, small) {
+  const b = $('#banner');
+  b.innerHTML = `${main}<span class="small">${small || ''}</span>`;
+  b.classList.add('show');
+}
+</script>
+</body>
+</html>

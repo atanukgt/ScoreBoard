@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Football Control</title>
+<style>
+  :root { --bg:#0f172a; --panel:#1e293b; --panel2:#273449; --line:#334155;
+          --text:#e2e8f0; --muted:#94a3b8; --accent:#38bdf8; --green:#34d399; --red:#f87171; --amber:#fbbf24; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+         background:var(--bg); color:var(--text); padding-bottom:40px; }
+  header { text-align:center; padding:10px 36px 10px 10px; background:var(--panel); border-bottom:1px solid var(--line);
+           font-weight:700; font-size:14px; letter-spacing:.5px; }
+  header .status { font-size:11px; color:var(--muted); font-weight:400; margin-top:2px; }
+  main { max-width:520px; margin:0 auto; padding:14px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:12px; }
+  .scoreline { display:flex; align-items:center; justify-content:center; gap:14px; font-size:40px; font-weight:800; }
+  .scoreline .name { font-size:15px; font-weight:700; max-width:120px; text-align:center;
+                     overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .clockrow { text-align:center; margin-top:6px; }
+  .clock { font-size:30px; font-variant-numeric:tabular-nums; font-weight:700; }
+  .period { color:var(--muted); font-size:13px; }
+  .row { display:flex; flex-wrap:wrap; gap:8px; }
+  .row > * { flex: 1 1 calc(50% - 4px); min-width:0; }
+  @media (max-width: 360px) {
+    .row { flex-direction:column; }
+    .row > * { flex: 1 1 100%; }
+  }
+  .periodrow { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+  .periodrow button { flex: 1 1 calc(25% - 5px); min-width:0; padding:12px 4px; }
+  .utilrow { display:flex; gap:8px; margin-top:8px; }
+  .utilrow > * { flex: 1 1 0; min-width:0; padding:14px 4px; }
+  .grid { display:grid; gap:8px; }
+  .g2 { grid-template-columns:1fr 1fr; } .g3 { grid-template-columns:repeat(3,1fr); }
+  .g4 { grid-template-columns:repeat(4,1fr); } .g5 { grid-template-columns:repeat(5,1fr); }
+  button { font:inherit; border:1px solid var(--line); background:var(--panel2); color:var(--text);
+           border-radius:10px; padding:14px 6px; font-weight:700; cursor:pointer; font-size:15px;
+           white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  button:active { transform:scale(.97); }
+  button.big { font-size:18px; padding:18px 6px; }
+  button.green { background:var(--green); color:#052e1c; border:none; }
+  button.red { background:var(--red); color:#450a0a; border:none; }
+  button.amber { background:var(--amber); color:#451a03; border:none; }
+  button.accent { background:var(--accent); color:#082f49; border:none; }
+  button.on { outline:3px solid var(--accent); }
+  h3 { margin:2px 0 8px; font-size:12px; text-transform:uppercase; letter-spacing:1px; color:var(--muted); }
+  .teamlabel { text-align:center; font-size:12px; color:var(--muted); margin-bottom:6px;
+               overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  /* Modal */
+  .modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.78); display:none;
+              align-items:center; justify-content:center; z-index:50; padding:16px; }
+  .modal-bg.open { display:flex; }
+  .modal { background:var(--panel); border:1px solid var(--line); border-radius:14px;
+           padding:20px; max-width:380px; width:100%; box-shadow:0 12px 40px rgba(0,0,0,.5); }
+  .modal h3 { margin:0 0 14px; font-size:14px; color:var(--text); text-transform:none; letter-spacing:0; text-align:center; }
+  .modal label { display:block; font-size:12px; color:var(--muted); margin:12px 0 6px; }
+  .modal input { width:100%; font:inherit; color:var(--text); background:var(--panel2);
+                border:1px solid var(--line); border-radius:8px; padding:10px 12px; }
+  .modal .actions { display:flex; gap:8px; margin-top:18px; }
+  .modal .actions button { flex:1; padding:12px 8px; }
+  #toast { position:fixed; bottom:16px; left:50%; transform:translateX(-50%); background:var(--red);
+           color:#fff; padding:9px 18px; border-radius:30px; opacity:0; transition:.25s; pointer-events:none;
+           font-weight:700; z-index:60; max-width:90vw; }
+  .cardlog { list-style:none; margin:8px 0 0; padding:0; font-size:13px; color:var(--muted);
+             display:flex; flex-direction:column; gap:4px; min-height:18px; }
+  .cardlog li { display:flex; align-items:center; gap:6px; font-weight:600; color:var(--text); }
+  .cardlog li .dot { width:10px; height:14px; border-radius:2px; flex-shrink:0; }
+  .cardlog li .dot.y { background:var(--amber); }
+  .cardlog li .dot.r { background:var(--red); }
+  .cardlog li .min { color:var(--muted); font-variant-numeric:tabular-nums; min-width:30px; text-align:right; }
+  .cardlog li.empty { color:var(--muted); font-weight:400; font-style:italic; }
+  #shootout .pens { font-size:22px; letter-spacing:3px; text-align:center; min-height:30px; }
+  .conn { position:fixed; top:8px; right:10px; width:10px; height:10px; border-radius:50%; background:var(--red); z-index:60; }
+  .conn.ok { background:var(--green); }
+  @media (max-width: 420px) {
+    .scoreline { font-size:34px; }
+    .scoreline .name { font-size:13px; max-width:80px; }
+    .clock { font-size:26px; }
+    .utilrow { flex-wrap:wrap; }
+    .utilrow > * { flex: 1 1 calc(50% - 4px); padding:12px 4px; font-size:13px; }
+    .periodrow button { padding:10px 2px; font-size:13px; }
+    #shootout .grid > button { padding:12px 4px; font-size:13px; }
+  }
+  @media (max-width: 360px) {
+    header { font-size:13px; padding:10px 30px 10px 10px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    header .status { font-size:10px; }
+  }
+</style>
+</head>
+<body>
+<div class="conn" id="conn"></div>
+<header><div id="title">Loading…</div><div class="status" id="statusLine"></div></header>
+<main>
+  <div class="card">
+    <div class="scoreline">
+      <div class="name" id="homeName"></div>
+      <div id="homeScore">0</div><div style="font-size:24px;color:var(--muted)">–</div><div id="awayScore">0</div>
+      <div class="name" id="awayName"></div>
+    </div>
+    <div class="clockrow">
+      <span class="clock" id="clock">00:00</span> <span id="stoppage" style="color:var(--amber);font-weight:800"></span>
+      <div class="period" id="period">Kick-off</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <div>
+        <div class="teamlabel" id="homeLabel">Home</div>
+        <div class="grid" style="gap:8px">
+          <button class="big green" onclick="goalPrompt('home')">⚽ GOAL</button>
+          <div class="grid g3">
+            <button onclick="send('adjustScore',{team:'home',delta:-1})">−1</button>
+            <button class="amber" onclick="cardPrompt('home','y')" id="homeY">🟨 0</button>
+            <button class="red" onclick="cardPrompt('home','r')" id="homeR">🟥 0</button>
+          </div>
+          <ul class="cardlog" id="homeCardLog" aria-label="Recent home cards"></ul>
+        </div>
+      </div>
+      <div>
+        <div class="teamlabel" id="awayLabel">Away</div>
+        <div class="grid" style="gap:8px">
+          <button class="big green" onclick="goalPrompt('away')">⚽ GOAL</button>
+          <div class="grid g3">
+            <button onclick="send('adjustScore',{team:'away',delta:-1})">−1</button>
+            <button class="amber" onclick="cardPrompt('away','y')" id="awayY">🟨 0</button>
+            <button class="red" onclick="cardPrompt('away','r')" id="awayR">🟥 0</button>
+          </div>
+          <ul class="cardlog" id="awayCardLog" aria-label="Recent away cards"></ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Clock</h3>
+    <div class="row" style="margin-bottom:8px">
+      <button class="green big" id="startBtn" onclick="send('startClock')">▶ Start</button>
+      <button class="big" onclick="send('pauseClock')">⏸ Pause</button>
+    </div>
+    <div class="periodrow" id="periodBtns"></div>
+    <div class="utilrow">
+      <button onclick="stoppagePrompt()">+ Stoppage</button>
+      <button onclick="setClockPrompt()">Set clock</button>
+      <button onclick="undo()">↩ Undo</button>
+      <button class="red" onclick="resetMatch()">Reset</button>
+    </div>
+  </div>
+
+  <div class="card" id="shootout" style="display:none">
+    <h3>Penalty shootout</h3>
+    <div class="row">
+      <div>
+        <div class="teamlabel" id="soHomeLabel"></div>
+        <div class="pens" id="soHome"></div>
+        <div class="grid g2" style="margin-top:6px">
+          <button class="green" onclick="send('shootoutKick',{team:'home',scored:true})">✔ Scored</button>
+          <button class="red" onclick="send('shootoutKick',{team:'home',scored:false})">✘ Missed</button>
+        </div>
+      </div>
+      <div>
+        <div class="teamlabel" id="soAwayLabel"></div>
+        <div class="pens" id="soAway"></div>
+        <div class="grid g2" style="margin-top:6px">
+          <button class="green" onclick="send('shootoutKick',{team:'away',scored:true})">✔ Scored</button>
+          <button class="red" onclick="send('shootoutKick',{team:'away',scored:false})">✘ Missed</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+<div id="toast"></div>
+
+<!-- Modal -->
+<div class="modal-bg" id="modalBg">
+  <div class="modal" id="modal"></div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const matchId = location.pathname.split('/').pop();
+const token = new URLSearchParams(location.search).get('token');
+const $ = (s) => document.querySelector(s);
+let S = null, serverOffset = 0;
+
+const PERIODS = ['1H','HT','2H','FT','ET1','ET2','PENS'];
+const PERIOD_LABELS = { PRE:'Kick-off','1H':'1st Half',HT:'Half Time','2H':'2nd Half',FT:'Full Time',
+                        ET1:'Extra Time 1',ETB:'ET Break',ET2:'Extra Time 2',AET:'After ET',PENS:'Penalties' };
+$('#periodBtns').innerHTML = PERIODS.map((p) =>
+  `<button data-period="${p}" onclick="send('setPeriod',{period:'${p}'})">${p}</button>`).join('');
+
+const socket = io({ auth: { matchId, token } });
+socket.on('connect', () => $('#conn').classList.add('ok'));
+socket.on('disconnect', () => $('#conn').classList.remove('ok'));
+socket.on('err', (e) => toast(e.error));
+socket.on('state', (msg) => {
+  if (!msg.control) { toast('Invalid control token — read-only'); }
+  S = msg.state;
+  serverOffset = msg.now - Date.now();
+  render();
+});
+
+function send(type, payload = {}) {
+  socket.emit('action', { type, payload }, (res) => { if (res && !res.ok) toast(res.error); });
+}
+function undo() { socket.emit('undo', (res) => { if (res && !res.ok) toast(res.error); }); }
+function toast(m) { const t = $('#toast'); t.textContent = m; t.style.opacity = 1; setTimeout(() => t.style.opacity = 0, 2200); }
+
+// ---- modal helpers ----
+function openModal(html) { $('#modal').innerHTML = html; $('#modalBg').classList.add('open'); }
+function closeModal() { $('#modalBg').classList.remove('open'); }
+window.closeModal = closeModal;
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function renderCardLog(team) {
+  const ul = document.getElementById(team === 'home' ? 'homeCardLog' : 'awayCardLog');
+  if (!ul) return;
+  const entries = (S.cardLog || []).filter((c) => c.team === team);
+  const recent = entries.slice(-3).reverse();
+  if (recent.length === 0) {
+    ul.innerHTML = '<li class="empty">No cards yet</li>';
+    return;
+  }
+  ul.innerHTML = recent.map((c) => {
+    const dot = c.color === 'r' ? 'r' : 'y';
+    const name = c.name ? esc(c.name) : '<span style="color:var(--muted);font-weight:400">Unnamed</span>';
+    return `<li><span class="dot ${dot}"></span><span class="min">${c.minute}'</span><span>${name}</span></li>`;
+  }).join('');
+}
+
+// ---- prompt-based actions, now via modal ----
+function goalPrompt(team) {
+  const label = S && S.config.teams[team].name || team;
+  openModal(`
+    <h3>Goal for ${esc(label)}</h3>
+    <label>Scorer name (optional)</label>
+    <input id="goalScorer" autofocus placeholder="e.g. Chhetri">
+    <div class="actions">
+      <button onclick="closeModal()">Cancel</button>
+      <button class="green" onclick="confirmGoal('${team}')">Add goal</button>
+    </div>`);
+  setTimeout(() => { const i = document.getElementById('goalScorer'); if (i) { i.focus(); i.addEventListener('keydown', (e) => { if (e.key === 'Enter') confirmGoal('${team}'); }); } }, 30);
+}
+window.confirmGoal = (team) => {
+  const scorer = (document.getElementById('goalScorer')?.value || '').trim();
+  closeModal();
+  send('goal', { team, scorer });
+};
+
+function stoppagePrompt() {
+  const cur = S ? S.stoppage : 0;
+  openModal(`
+    <h3>Added stoppage time</h3>
+    <label>Minutes (0 to clear)</label>
+    <input id="stopMin" type="number" min="0" max="45" value="${cur}" autofocus>
+    <div class="actions">
+      <button onclick="closeModal()">Cancel</button>
+      <button class="green" onclick="confirmStoppage()">Set</button>
+    </div>`);
+  setTimeout(() => { const i = document.getElementById('stopMin'); if (i) { i.focus(); i.select(); i.addEventListener('keydown', (e) => { if (e.key === 'Enter') confirmStoppage(); }); } }, 30);
+}
+window.confirmStoppage = () => {
+  const m = Math.max(0, Math.min(45, +document.getElementById('stopMin').value || 0));
+  closeModal();
+  send('stoppage', { minutes: m });
+};
+
+function setClockPrompt() {
+  // Read current clock
+  const now = Date.now() + serverOffset;
+  const ms = S ? S.clock.elapsedMs + (S.clock.running ? Math.max(0, now - S.clock.startedAt) : 0) : 0;
+  const curMm = String(Math.floor(ms / 60000)).padStart(2, '0');
+  const curSs = String(Math.floor((ms % 60000) / 1000)).padStart(2, '0');
+  openModal(`
+    <h3>Set match clock</h3>
+    <label>Time (mm:ss)</label>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input id="clkMm" type="number" min="0" max="200" value="${+curMm}" style="width:80px">
+      <span style="font-size:20px;color:var(--muted)">:</span>
+      <input id="clkSs" type="number" min="0" max="59" value="${+curSs}" style="width:80px">
+    </div>
+    <div class="actions">
+      <button onclick="closeModal()">Cancel</button>
+      <button class="green" onclick="confirmSetClock()">Set</button>
+    </div>`);
+  setTimeout(() => { const i = document.getElementById('clkMm'); if (i) { i.focus(); i.select(); } }, 30);
+}
+window.confirmSetClock = () => {
+  const mm = Math.max(0, Math.min(200, +document.getElementById('clkMm').value || 0));
+  const ss = Math.max(0, Math.min(59, +document.getElementById('clkSs').value || 0));
+  closeModal();
+  send('setClock', { minutes: mm, seconds: ss });
+};
+
+function resetMatch() {
+  openModal(`
+    <h3>Reset the match?</h3>
+    <p style="color:var(--muted);font-size:14px;margin:0">This clears the score, clock, cards, and shootout — back to 0-0 at kick-off.</p>
+    <div class="actions">
+      <button onclick="closeModal()">Cancel</button>
+      <button class="red" onclick="confirmReset()">Yes, reset</button>
+    </div>`);
+}
+window.confirmReset = () => { closeModal(); send('reset'); };
+
+// ---- card prompt — taps yellow/red open a small modal for player name ----
+function cardPrompt(team, color) {
+  const label = S && S.config.teams[team].name || team;
+  const cardWord = color === 'r' ? 'Red card' : 'Yellow card';
+  const accent = color === 'r' ? 'red' : 'amber';
+  openModal(`
+    <h3>${cardWord} — ${esc(label)}</h3>
+    <label>Player name (optional)</label>
+    <input id="cardName" autofocus placeholder="e.g. Messi">
+    <div class="actions">
+      <button onclick="closeModal()">Cancel</button>
+      <button class="${accent}" onclick="confirmCard('${team}','${color}')">Issue card</button>
+    </div>`);
+  setTimeout(() => {
+    const i = document.getElementById('cardName');
+    if (i) {
+      i.focus();
+      i.addEventListener('keydown', (e) => { if (e.key === 'Enter') confirmCard(team, color); });
+    }
+  }, 30);
+}
+window.cardPrompt = cardPrompt;
+window.confirmCard = (team, color) => {
+  const raw = document.getElementById('cardName')?.value || '';
+  const name = raw.trim();
+  closeModal();
+  send('card', { team, color, delta: 1, ...(name ? { name } : {}) });
+};
+
+// Click backdrop to dismiss modal
+document.getElementById('modalBg').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) closeModal();
+});
+
+function render() {
+  if (!S) return;
+  const t = S.config.teams;
+  $('#title').textContent = `${t.home.name} v ${t.away.name}`;
+  $('#homeName').textContent = t.home.short; $('#awayName').textContent = t.away.short;
+  $('#homeLabel').textContent = t.home.name; $('#awayLabel').textContent = t.away.name;
+  $('#homeScore').textContent = S.score.home; $('#awayScore').textContent = S.score.away;
+  $('#homeY').textContent = `🟨 ${S.cards.home.y}`; $('#homeR').textContent = `🟥 ${S.cards.home.r}`;
+  $('#awayY').textContent = `🟨 ${S.cards.away.y}`; $('#awayR').textContent = `🟥 ${S.cards.away.r}`;
+  renderCardLog('home');
+  renderCardLog('away');
+  $('#period').textContent = PERIOD_LABELS[S.period] || S.period;
+  $('#stoppage').textContent = S.stoppage ? `+${S.stoppage}` : '';
+  document.querySelectorAll('[data-period]').forEach((b) =>
+    b.classList.toggle('on', b.dataset.period === S.period));
+  $('#shootout').style.display = S.period === 'PENS' ? '' : 'none';
+  if (S.shootout) {
+    $('#soHomeLabel').textContent = t.home.name; $('#soAwayLabel').textContent = t.away.name;
+    $('#soHome').textContent = S.shootout.home.map((k) => k === 'G' ? '●' : '○').join(' ');
+    $('#soAway').textContent = S.shootout.away.map((k) => k === 'G' ? '●' : '○').join(' ');
+  }
+  $('#statusLine').textContent = S.lastGoal ? `Last goal: ${S.lastGoal.name || 'unknown'} ${S.lastGoal.minute}'` : '';
+}
+
+setInterval(() => {
+  if (!S) return;
+  const now = Date.now() + serverOffset;
+  const ms = S.clock.elapsedMs + (S.clock.running ? Math.max(0, now - S.clock.startedAt) : 0);
+  const mm = Math.floor(ms / 60000), ss = Math.floor((ms % 60000) / 1000);
+  $('#clock').textContent = `${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
+  $('#startBtn').textContent = S.clock.running ? '▶ Running' : '▶ Start';
+}, 250);
+</script>
+</body>
+</html>

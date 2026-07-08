@@ -1,0 +1,71 @@
+# systemd unit for scoreboard-live
+#
+# Install at:   /etc/systemd/system/scoreboard.service
+# Then:         sudo systemctl daemon-reload
+#               sudo systemctl enable --now scoreboard
+#
+# Adjust `User`, `WorkingDirectory`, and the Environment values to your
+# server. The defaults below assume:
+#   - app lives at /var/www/scoreboard-live (cloned or rsynced)
+#   - a dedicated unprivileged user `scoreboard` owns the data dir
+#   - node is installed via nvm and lives at /home/scoreboard/.nvm/...
+#     (use `which node` as the scoreboard user to get the real path;
+#      or set ExecStart to /usr/bin/node on distros that ship node)
+
+[Unit]
+Description=Scoreboard Live (football & cricket OBS overlays)
+Documentation=https://github.com/your-org/scoreboard-live
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=scoreboard
+Group=scoreboard
+WorkingDirectory=/var/www/scoreboard-live
+
+# --- Node binary (adjust to your install) ---
+# nvm install (run as the scoreboard user): `nvm install --lts`
+# Then resolve with: readlink -f $(which node)
+ExecStart=/home/scoreboard/.nvm/versions/node/v20.18.0/bin/node server/index.js
+
+# --- Environment ---
+# ADMIN_PASSWORD is REQUIRED in production — the default `changeme` triggers a
+# server warning. Pick a strong password and put it in /etc/scoreboard.env (mode
+# 0600, owned by scoreboard) rather than inline here.
+EnvironmentFile=/etc/scoreboard.env
+# Static fallbacks (EnvironmentFile wins on conflict):
+Environment=PORT=3000
+Environment=NODE_ENV=production
+
+# --- Data persistence ---
+# Scoreboard data lives in DATA_DIR (DB + uploaded crests + session secret).
+# Make sure this directory exists and is writable by `User=`.
+# By default the app uses ./data inside WorkingDirectory; uncomment to override:
+# Environment=DATA_DIR=/var/lib/scoreboard-live
+
+# --- Hardening (drop most Linux capabilities we don't need) ---
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/www/scoreboard-live/data /var/lib/scoreboard-live
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+
+# --- Restart behaviour ---
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+
+# --- Resource limits ---
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tournament Leaderboard</title>
+<style>
+  /* Transparent page — designed for a 1920x1080 OBS browser source.
+     Visually consistent with the existing football overlay (dark / amber accents). */
+  html, body {
+    margin: 0; padding: 0; background: transparent; overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+    color: #f8fafc;
+  }
+  * { box-sizing: border-box; }
+
+  #wrap {
+    position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    width: 1280px; max-width: 92vw;
+    background: linear-gradient(180deg, rgba(11,18,32,.96), rgba(7,12,22,.96));
+    border: 1px solid #1f2a44;
+    border-radius: 18px;
+    box-shadow: 0 12px 48px rgba(0,0,0,.55);
+    overflow: hidden;
+  }
+  #titlebar {
+    display: flex; align-items: center; gap: 14px;
+    padding: 18px 26px;
+    background: linear-gradient(90deg, #0d1b12, #052e16 60%, #0d1b12);
+    border-bottom: 1px solid #14532d;
+  }
+  #titlebar .icon { font-size: 26px; }
+  #titlebar h1 {
+    margin: 0; font-size: 26px; font-weight: 900; letter-spacing: 1px;
+    color: #4ade80; text-transform: uppercase;
+  }
+  #titlebar .sub { margin-left: auto; color: #86efac; font-size: 13px; letter-spacing: 1px; text-transform: uppercase; }
+
+  table {
+    width: 100%; border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
+  }
+  thead th {
+    text-align: center; font-size: 11px; letter-spacing: 1.5px;
+    text-transform: uppercase; color: #86efac;
+    padding: 12px 8px; background: rgba(20,83,45,.25);
+    border-bottom: 1px solid #14532d;
+  }
+  thead th.team-col { text-align: left; padding-left: 22px; }
+  tbody tr { transition: background .25s; }
+  tbody tr:hover { background: rgba(56,189,248,.06); }
+  tbody td {
+    text-align: center; padding: 14px 8px;
+    border-bottom: 1px solid #1f2a44;
+    font-size: 18px; font-weight: 700;
+  }
+  tbody td.team-cell {
+    text-align: left; padding-left: 0;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .pos {
+    width: 56px; padding-left: 18px;
+    font-weight: 900; font-size: 22px; color: #f8fafc;
+  }
+  .stripe {
+    width: 8px; align-self: stretch;
+    margin-right: 4px;
+  }
+  .crest {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: #1b2436; object-fit: contain;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 13px; color: #fff;
+    border: 2px solid rgba(255,255,255,.15);
+    flex: none;
+  }
+  .crest img { width: 100%; height: 100%; border-radius: 50%; object-fit: contain; }
+  .teamname { display: flex; flex-direction: column; }
+  .teamname strong { font-weight: 800; font-size: 18px; color: #f8fafc; }
+  .teamname .short { font-size: 11px; letter-spacing: 1px; color: #94a3b8; text-transform: uppercase; }
+  .pts { color: #fbbf24; font-size: 22px; }
+
+  /* Medal stripe for the top three rows. */
+  tr.r1 .stripe { background: linear-gradient(180deg, #fde047, #f59e0b); box-shadow: inset 0 0 6px rgba(0,0,0,.4); }
+  tr.r2 .stripe { background: linear-gradient(180deg, #e2e8f0, #94a3b8); }
+  tr.r3 .stripe { background: linear-gradient(180deg, #fb923c, #b45309); }
+  tr.r1 .pos::before { content: "🥇 "; }
+  tr.r2 .pos::before { content: "🥈 "; }
+  tr.r3 .pos::before { content: "🥉 "; }
+  tr.r1 td, tr.r2 td, tr.r3 td { background: rgba(56,189,248,.04); }
+
+  /* Highlight for the ?team=<id> query. */
+  tr.hl td { background: rgba(56,189,248,.18) !important; }
+  tr.hl .stripe { background: #38bdf8; }
+
+  #empty, #error {
+    padding: 60px 20px; text-align: center; color: #94a3b8;
+    font-size: 16px; letter-spacing: 1px;
+  }
+  #error { color: #f87171; }
+
+  #footer {
+    padding: 10px 26px;
+    background: rgba(0,0,0,.35);
+    border-top: 1px solid #1f2a44;
+    color: #64748b; font-size: 11px; letter-spacing: 1px; text-align: right;
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="titlebar">
+    <span class="icon">🏆</span>
+    <h1 id="tname">Loading…</h1>
+    <span class="sub" id="tsub">Standings</span>
+  </div>
+  <table id="board">
+    <thead>
+      <tr>
+        <th class="pos">Pos</th>
+        <th class="team-col">Team</th>
+        <th>P</th><th>W</th><th>D</th><th>L</th>
+        <th>GF</th><th>GA</th><th>GD</th><th>Pts</th>
+      </tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <div id="empty" style="display:none">No teams in this tournament yet.</div>
+  <div id="error" style="display:none"></div>
+  <div id="footer" id="footer">Auto-refresh · 5s</div>
+</div>
+
+<script>
+const tournamentId = location.pathname.split('/').pop();
+const params = new URLSearchParams(location.search);
+const highlightTeam = params.get('team');
+
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({
+  '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+}[c]));
+
+async function refresh() {
+  try {
+    const [info, standings] = await Promise.all([
+      fetch(`/api/tournaments/${encodeURIComponent(tournamentId)}/info`).then((r) => r.json()),
+      fetch(`/api/tournaments/${encodeURIComponent(tournamentId)}/standings`).then((r) => r.json()),
+    ]);
+    if (info.error) throw new Error(info.error);
+    $('#tname').textContent = info.name || 'Tournament';
+    $('#tsub').textContent = (info.sport || '').toUpperCase() + ' · ' +
+      (info.status === 'completed' ? 'Completed' : 'Active');
+    renderRows(Array.isArray(standings) ? standings : []);
+  } catch (e) {
+    $('#error').textContent = 'Failed to load: ' + e.message;
+    $('#error').style.display = '';
+    $('#board').style.display = 'none';
+  }
+}
+
+function renderRows(rows) {
+  const tbody = $('#rows');
+  tbody.innerHTML = '';
+  if (!rows.length) {
+    $('#empty').style.display = '';
+    $('#board').style.display = 'none';
+    return;
+  }
+  $('#empty').style.display = 'none';
+  $('#board').style.display = '';
+  rows.forEach((r, i) => {
+    const tr = document.createElement('tr');
+    if (i === 0) tr.classList.add('r1');
+    else if (i === 1) tr.classList.add('r2');
+    else if (i === 2) tr.classList.add('r3');
+    if (highlightTeam && String(r.team_id) === String(highlightTeam)) tr.classList.add('hl');
+    const crest = r.crest
+      ? `<div class="crest"><img src="${esc(r.crest)}" alt=""></div>`
+      : `<div class="crest">${esc(r.short || '')}</div>`;
+    tr.innerHTML = `
+      <td class="pos">${i + 1}</td>
+      <td class="team-cell">
+        <div class="stripe" style="background:${esc(r.color)}"></div>
+        ${crest}
+        <div class="teamname"><strong>${esc(r.name)}</strong><span class="short">${esc(r.short || '')}</span></div>
+      </td>
+      <td>${r.played}</td>
+      <td>${r.wins}</td>
+      <td>${r.draws}</td>
+      <td>${r.losses}</td>
+      <td>${r.gf}</td>
+      <td>${r.ga}</td>
+      <td>${r.gd > 0 ? '+' + r.gd : r.gd}</td>
+      <td class="pts">${r.points}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>

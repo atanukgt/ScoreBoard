@@ -1,0 +1,38 @@
+# dependencies
+node_modules/
+
+# runtime data (SQLite DB, uploaded crests, session signing secret)
+data/
+
+# environment / secrets — never commit
+.env
+.env.*
+!.env.example
+*.env.local
+
+# editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# build artefacts (none right now, but reserve the slot)
+dist/
+build/
+
+# test artefacts
+coverage/
+.nyc_output/
+
+# agent session scratch (Mavis plans, scratchpads)
+.mavis/
+
+# internal session notes (Claude handoff doc)
+HANDOFF.md

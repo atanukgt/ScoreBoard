@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Cricket Control</title>
+<style>
+  :root { --bg:#0f172a; --panel:#1e293b; --panel2:#273449; --line:#334155;
+          --text:#e2e8f0; --muted:#94a3b8; --accent:#38bdf8; --green:#34d399; --red:#f87171; --amber:#fbbf24; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+         background:var(--bg); color:var(--text); padding-bottom:50px; }
+  header { text-align:center; padding:10px; background:var(--panel); border-bottom:1px solid var(--line);
+           font-weight:700; font-size:14px; }
+  main { max-width:520px; margin:0 auto; padding:14px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:12px; }
+  h3 { margin:2px 0 10px; font-size:12px; text-transform:uppercase; letter-spacing:1px; color:var(--muted); }
+  label { display:block; font-size:12px; color:var(--muted); margin:10px 0 4px; }
+  select, input { width:100%; font:inherit; color:var(--text); background:var(--panel2);
+                  border:1px solid var(--line); border-radius:8px; padding:10px; }
+  button { font:inherit; border:1px solid var(--line); background:var(--panel2); color:var(--text);
+           border-radius:10px; padding:14px 4px; font-weight:700; cursor:pointer; font-size:16px; }
+  button:active { transform:scale(.97); }
+  button.green { background:var(--green); color:#052e1c; border:none; }
+  button.red { background:var(--red); color:#450a0a; border:none; }
+  button.accent { background:var(--accent); color:#082f49; border:none; }
+  button.amber { background:var(--amber); color:#451a03; border:none; }
+  button.on { outline:3px solid var(--accent); }
+  .grid { display:grid; gap:8px; }
+  .g2 { grid-template-columns:1fr 1fr; } .g3 { grid-template-columns:repeat(3,1fr); }
+  .g4 { grid-template-columns:repeat(4,1fr); } .g7 { grid-template-columns:repeat(7,1fr); }
+  .score { font-size:36px; font-weight:800; text-align:center; }
+  .score small { font-size:16px; color:var(--muted); font-weight:600; }
+  .subline { text-align:center; color:var(--muted); font-size:13px; margin-top:2px; }
+  .bat { display:flex; justify-content:space-between; font-size:14px; padding:3px 0; font-variant-numeric:tabular-nums; }
+  .bat .n { font-weight:700; }
+  .thisover { display:flex; gap:5px; flex-wrap:wrap; margin-top:8px; justify-content:center; }
+  .thisover span { min-width:26px; height:26px; border-radius:50%; background:var(--panel2); display:inline-flex;
+                   align-items:center; justify-content:center; font-size:12px; font-weight:700; }
+  .thisover span.w { background:var(--red); color:#fff; }
+  .thisover span.b4 { background:var(--accent); color:#082f49; }
+  .thisover span.b6 { background:var(--green); color:#052e1c; }
+  .modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.78); display:none;
+              align-items:flex-end; justify-content:center; z-index:50; padding:0; }
+  .modal-bg.open { display:flex; }
+  @media (min-width: 600px) { .modal-bg { align-items:center; padding:16px; } }
+  .modal { background:var(--panel); border-radius:16px 16px 0 0; padding:18px; width:100%; max-width:520px;
+           border:1px solid var(--line); max-height:85vh; overflow:auto; box-shadow:0 -8px 32px rgba(0,0,0,.4); }
+  @media (min-width: 600px) { .modal { border-radius:14px; } }
+  #toast { position:fixed; bottom:16px; left:50%; transform:translateX(-50%); background:var(--red); color:#fff;
+           padding:9px 18px; border-radius:30px; opacity:0; transition:.25s; pointer-events:none; font-weight:700; z-index:60; }
+  .conn { position:fixed; top:8px; right:10px; width:10px; height:10px; border-radius:50%; background:var(--red); z-index:60; }
+  .conn.ok { background:var(--green); }
+  .result { text-align:center; font-size:20px; font-weight:800; color:var(--green); padding:10px 0; }
+  .muted { color:var(--muted); font-size:13px; }
+  @media (max-width: 360px) {
+    header { font-size:12px; padding:10px 30px 10px 10px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    button { font-size:14px; padding:12px 2px; }
+    .score { font-size:32px; }
+    .subline { font-size:11px; }
+    .grid.g4 > button { font-size:13px; padding:12px 2px; }
+  }
+</style>
+</head>
+<body>
+<div class="conn" id="conn"></div>
+<header id="title">Loading…</header>
+<main id="main"></main>
+<div class="modal-bg" id="modalBg"><div class="modal" id="modal"></div></div>
+<div id="toast"></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const matchId = location.pathname.split('/').pop();
+const token = new URLSearchParams(location.search).get('token');
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let S = null, extraMode = null; // null | 'wd' | 'nb' | 'b' | 'lb'
+
+const socket = io({ auth: { matchId, token } });
+socket.on('connect', () => $('#conn').classList.add('ok'));
+socket.on('disconnect', () => $('#conn').classList.remove('ok'));
+socket.on('err', (e) => toast(e.error));
+socket.on('state', (msg) => { if (!msg.control) toast('Invalid control token — read-only'); S = msg.state; render(); });
+
+function send(type, payload = {}, cb) {
+  socket.emit('action', { type, payload }, (res) => {
+    if (res && !res.ok) toast(res.error); else cb && cb();
+  });
+}
+function undo() { closeModal(); socket.emit('undo', (res) => { if (res && !res.ok) toast(res.error); }); }
+function toast(m) { const t = $('#toast'); t.textContent = m; t.style.opacity = 1; setTimeout(() => t.style.opacity = 0, 2200); }
+
+// ---------- helpers ----------
+const teams = () => S.config.teams;
+const inn = () => S.innings[S.currentInnings];
+const battingPlayers = () => teams()[inn() ? inn().battingTeam : firstBatting()].players;
+const bowlingPlayers = () => teams()[inn() ? inn().bowlingTeam : otherTeam(firstBatting())].players;
+const otherTeam = (t) => (t === 'home' ? 'away' : 'home');
+function firstBatting() {
+  const { winner, decision } = S.config.toss;
+  return decision === 'bat' ? winner : otherTeam(winner);
+}
+function nextBattingTeam() { return S.phase === 'setup' ? firstBatting() : otherTeam(S.innings[0].battingTeam); }
+const overStr = (b) => `${Math.floor(b / 6)}.${b % 6}`;
+const crr = (i) => (i.balls ? (i.runs / (i.balls / 6)).toFixed(2) : '0.00');
+
+function playerSelect(id, names, exclude = []) {
+  const opts = names.filter((n) => !exclude.includes(n))
+    .map((n) => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+  return `<select id="${id}" onchange="document.getElementById('${id}x').style.display=this.value==='__other'?'':'none'">
+            ${opts}<option value="__other">Other…</option></select>
+          <input id="${id}x" placeholder="Type name" style="display:none;margin-top:6px">`;
+}
+function selVal(id) {
+  const v = $(`#${id}`).value;
+  return v === '__other' ? $(`#${id}x`).value.trim() : v;
+}
+
+// ---------- render ----------
+function render() {
+  const t = teams();
+  $('#title').textContent = `${t.home.name} v ${t.away.name} · ${S.config.oversPerInnings} overs`;
+  closeModal();
+  if (S.phase === 'setup' || S.phase === 'inningsBreak') return renderSetup();
+  if (S.phase === 'finished') return renderFinished();
+  renderLive();
+  const i = inn();
+  if (i.pendingBatsman) openBatsmanModal();
+  else if (i.pendingBowler) openBowlerModal();
+}
+
+function renderSetup() {
+  const battingSide = nextBattingTeam();
+  const bat = teams()[battingSide], bowl = teams()[otherTeam(battingSide)];
+  const inningsNo = S.phase === 'setup' ? 1 : 2;
+  const breakInfo = S.phase === 'inningsBreak'
+    ? `<div class="card"><div class="score">${inn0Summary()}</div>
+       <div class="subline">${esc(teams()[S.innings[0].battingTeam].name)} innings complete — target <b>${S.target}</b></div></div>`
+    : '';
+  $('#main').innerHTML = `${breakInfo}
+    <div class="card">
+      <h3>Start innings ${inningsNo} — ${esc(bat.name)} batting</h3>
+      <label>Striker</label>${playerSelect('striker', bat.players)}
+      <label>Non-striker</label>${playerSelect('nonStriker', bat.players)}
+      <label>Opening bowler (${esc(bowl.name)})</label>${playerSelect('bowler', bowl.players)}
+      <div style="margin-top:16px"><button class="green" style="width:100%" onclick="startInnings()">Start innings</button></div>
+      ${inningsNo === 2 ? '<div style="margin-top:8px;text-align:center"><button class="ghost" onclick="undo()" style="border:none;background:none;color:var(--muted)">↩ Undo last ball of innings 1</button></div>' : ''}
+    </div>`;
+  if (bat.players.length > 1) $('#nonStriker').selectedIndex = 1;
+}
+function inn0Summary() {
+  const i = S.innings[0];
+  return `${i.runs}/${i.wickets} <small>(${overStr(i.balls)})</small>`;
+}
+
+window.startInnings = () => {
+  const striker = selVal('striker'), nonStriker = selVal('nonStriker'), bowler = selVal('bowler');
+  if (!striker || !nonStriker || !bowler) return toast('All three names required');
+  if (striker === nonStriker) return toast('Striker and non-striker must differ');
+  send('startInnings', { striker, nonStriker, bowler });
+};
+
+function renderLive() {
+  const i = inn();
+  const bat = teams()[i.battingTeam];
+  const striker = i.batsmen[i.striker], nonStriker = i.batsmen[i.nonStriker];
+  const bowler = i.bowlers[i.bowler];
+  const chase = S.currentInnings === 1 && S.target != null;
+  const ballsLeft = S.config.oversPerInnings * 6 - i.balls;
+  const rrr = chase && ballsLeft > 0 ? (((S.target - i.runs) / ballsLeft) * 6).toFixed(2) : null;
+
+  $('#main').innerHTML = `
+    <div class="card">
+      <div class="score">${esc(bat.short)} ${i.runs}/${i.wickets} <small>(${overStr(i.balls)}/${S.config.oversPerInnings})</small></div>
+      <div class="subline">CRR ${crr(i)}${chase ? ` · Target ${S.target} · Need ${Math.max(0, S.target - i.runs)} off ${ballsLeft} · RRR ${rrr ?? '—'}` : ''}</div>
+      <div style="margin-top:10px">
+        ${batLine(striker, true)}${batLine(nonStriker, false)}
+        <div class="bat" style="color:var(--muted)">
+          <span class="n">⚾ ${esc(bowler.name)}</span>
+          <span>${overStr(bowler.balls)}-${bowler.maidens}-${bowler.runs}-${bowler.wickets}</span>
+        </div>
+      </div>
+      <div class="thisover">${i.thisOver.map(sym).join('')}</div>
+    </div>
+
+    <div class="card">
+      <div class="grid g4" style="margin-bottom:8px">
+        ${['wd','nb','b','lb'].map((x) =>
+          `<button class="${extraMode === x ? 'on amber' : ''}" onclick="toggleExtra('${x}')">${{wd:'Wide',nb:'No-ball',b:'Bye',lb:'Leg-bye'}[x]}</button>`).join('')}
+      </div>
+      <div class="grid g7">
+        ${[0,1,2,3,4,5,6].map((r) =>
+          `<button class="${r === 4 ? 'accent' : r === 6 ? 'green' : ''}" onclick="scoreBall(${r})">${r}</button>`).join('')}
+      </div>
+      <div class="grid g2" style="margin-top:8px">
+        <button class="red" onclick="openWicketModal()">🔴 WICKET</button>
+        <button onclick="undo()">↩ Undo</button>
+      </div>
+      <div class="grid g2" style="margin-top:8px">
+        <button onclick="send('swapStrike')">⇄ Swap strike</button>
+        <button onclick="endInningsConfirm()">End innings</button>
+      </div>
+      <div style="margin-top:8px;text-align:center"><button class="ghost" onclick="resetMatchConfirm()" style="border:none;background:none;color:var(--muted);font-size:13px">Reset match</button></div>
+      <div class="muted" style="margin-top:8px;text-align:center">${extraHint()}</div>
+    </div>`;
+}
+
+function batLine(b, onStrike) {
+  if (!b) return `<div class="bat"><span class="n muted">— waiting for batsman —</span></div>`;
+  return `<div class="bat"><span class="n">${onStrike ? '🏏 ' : ''}${esc(b.name)}${onStrike ? '*' : ''}</span>
+          <span>${b.runs} (${b.balls})${b.fours ? ` · ${b.fours}×4` : ''}${b.sixes ? ` · ${b.sixes}×6` : ''}</span></div>`;
+}
+function sym(x) {
+  const cls = x.includes('W') ? 'w' : x === '4' ? 'b4' : x === '6' ? 'b6' : '';
+  return `<span class="${cls}">${esc(x)}</span>`;
+}
+function extraHint() {
+  if (!extraMode) return 'Tap a number for runs off the bat.';
+  return { wd: 'Wide active: number = extra runs ran (0 for a plain wide).',
+           nb: 'No-ball active: number = runs off the bat (penalty auto-added).',
+           b: 'Bye active: number = byes ran.', lb: 'Leg-bye active: number = leg-byes ran.' }[extraMode];
+}
+
+window.toggleExtra = (x) => { extraMode = extraMode === x ? null : x; renderLive(); };
+window.scoreBall = (runs) => {
+  const payload = { runs, extra: extraMode, wicket: null };
+  extraMode = null;
+  send('ball', payload);
+};
+window.endInningsConfirm = () => {
+  openModal(`
+    <h3>End this innings?</h3>
+    <p class="muted" style="margin:0">The current innings will close immediately and the match will move to ${S.currentInnings === 0 ? 'innings break / target chase' : 'the result'}.</p>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button style="flex:1;padding:12px 8px" onclick="closeModal()">Cancel</button>
+      <button class="red" style="flex:1;padding:12px 8px" onclick="confirmEndInnings()">Yes, end</button>
+    </div>`);
+};
+window.confirmEndInnings = () => { closeModal(); send('endInnings'); };
+window.resetMatchConfirm = () => {
+  openModal(`
+    <h3>Reset the entire match?</h3>
+    <p class="muted" style="margin:0">Clears both innings back to 0. Use Undo if you just want to revert the last ball.</p>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button style="flex:1;padding:12px 8px" onclick="closeModal()">Cancel</button>
+      <button class="red" style="flex:1;padding:12px 8px" onclick="confirmResetMatch()">Yes, reset</button>
+    </div>`);
+};
+window.confirmResetMatch = () => { closeModal(); send('reset'); };
+
+// ---------- modals ----------
+function openModal(html) { $('#modal').innerHTML = html; $('#modalBg').classList.add('open'); }
+function closeModal() { $('#modalBg').classList.remove('open'); }
+window.closeModal = closeModal;
+// Click backdrop to dismiss modal
+$('#modalBg').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeModal(); });
+
+window.openWicketModal = () => {
+  const kinds = [['bowled','Bowled'],['caught','Caught'],['lbw','LBW'],['runout','Run out'],['stumped','Stumped'],['hitwicket','Hit wicket']];
+  openModal(`
+    <h3>Wicket — how out?</h3>
+    <div class="grid g3">${kinds.map(([k, l]) => `<button onclick="pickWicket('${k}')">${l}</button>`).join('')}</div>
+    <div style="margin-top:12px;text-align:center"><button style="border:none;background:none;color:var(--muted)" onclick="closeModal()">Cancel</button></div>`);
+};
+
+window.pickWicket = (kind) => {
+  if (kind === 'runout') {
+    const i = inn();
+    openModal(`
+      <h3>Run out</h3>
+      <label>Who was out?</label>
+      <div class="grid g2">
+        <button id="roStriker" class="on" onclick="roWho='striker';roHl()">${esc(i.batsmen[i.striker]?.name || 'Striker')}</button>
+        <button id="roNonStriker" onclick="roWho='nonStriker';roHl()">${esc(i.batsmen[i.nonStriker]?.name || 'Non-striker')}</button>
+      </div>
+      <label>Runs completed before the wicket</label>
+      <div class="grid g4">${[0,1,2,3].map((r) => `<button id="ro${r}" class="${r === 0 ? 'on' : ''}" onclick="roRuns=${r};roHl()">${r}</button>`).join('')}</div>
+      <label>Fielder (optional)</label><input id="roFielder" placeholder="e.g. Dhoni">
+      <div style="display:flex;gap:8px;margin-top:16px">
+        <button style="flex:1;padding:12px 8px" onclick="closeModal()">Cancel</button>
+        <button class="red" style="flex:1;padding:12px 8px" onclick="confirmRunout()">Confirm run out</button>
+      </div>`);
+    window.roWho = 'striker'; window.roRuns = 0;
+    return;
+  }
+  if (kind === 'caught' || kind === 'stumped') {
+    // Need a fielder/keeper name — show a follow-up modal
+    const role = kind === 'caught' ? 'Fielder' : 'Keeper';
+    const bowl = teams()[inn().bowlingTeam];
+    const fielderOpts = bowl.players.concat([]);
+    const fielderBtns = fielderOpts.map((p) => `<button onclick="confirmSimpleWicket('${kind}', '${esc(p)}')">${esc(p)}</button>`).join('');
+    openModal(`
+      <h3>${role} (optional)</h3>
+      <p class="muted" style="margin:0 0 12px">Pick from ${esc(bowl.name)}, or type a name.</p>
+      <input id="fkName" placeholder="Type a name" style="margin-bottom:10px">
+      <div class="grid g3" style="max-height:30vh;overflow:auto;margin-bottom:12px">${fielderBtns || '<p class="muted">No players on fielding side</p>'}</div>
+      <div style="display:flex;gap:8px">
+        <button style="flex:1;padding:12px 8px" onclick="confirmSimpleWicket('${kind}', '')">Skip</button>
+        <button class="red" style="flex:1;padding:12px 8px" onclick="confirmSimpleWicket('${kind}', document.getElementById('fkName').value.trim())">Confirm</button>
+      </div>`);
+    return;
+  }
+  // bowled, lbw, hit wicket — no fielder needed
+  closeModal();
+  send('ball', { runs: 0, extra: extraMode, wicket: { kind, fielder: '' } });
+  extraMode = null;
+};
+window.confirmSimpleWicket = (kind, fielder) => {
+  closeModal();
+  send('ball', { runs: 0, extra: extraMode, wicket: { kind, fielder: (fielder || '').trim() } });
+  extraMode = null;
+};
+window.roHl = () => {
+  $('#roStriker').classList.toggle('on', roWho === 'striker');
+  $('#roNonStriker').classList.toggle('on', roWho === 'nonStriker');
+  [0,1,2,3].forEach((r) => $(`#ro${r}`).classList.toggle('on', roRuns === r));
+};
+window.confirmRunout = () => {
+  const fielder = $('#roFielder').value.trim();
+  closeModal();
+  send('ball', { runs: roRuns, extra: extraMode, wicket: { kind: 'runout', who: roWho, fielder } });
+  extraMode = null;
+};
+
+function openBatsmanModal() {
+  const i = inn();
+  const used = i.batsmen.map((b) => b.name);
+  openModal(`
+    <h3>New batsman in</h3>
+    ${playerSelect('nb_name', battingPlayers(), used)}
+    <label>Takes strike?</label>
+    <div class="grid g2">
+      <button id="nbYes" onclick="nbStrike=true;nbHl()">Yes — on strike</button>
+      <button id="nbNo" class="on" onclick="nbStrike=false;nbHl()">No</button>
+    </div>
+    <div style="margin-top:14px"><button class="green" style="width:100%" onclick="confirmBatsman()">Confirm</button></div>
+    <div style="margin-top:8px;text-align:center"><button style="border:none;background:none;color:var(--muted)" onclick="undo()">↩ Undo the wicket instead</button></div>`);
+  window.nbStrike = false;
+}
+window.nbHl = () => { $('#nbYes').classList.toggle('on', nbStrike); $('#nbNo').classList.toggle('on', !nbStrike); };
+window.confirmBatsman = () => {
+  const name = selVal('nb_name');
+  if (!name) return toast('Name required');
+  send('newBatsman', { name, onStrike: nbStrike });
+};
+
+function openBowlerModal() {
+  const i = inn();
+  const current = i.bowlers[i.bowler]?.name;
+  openModal(`
+    <h3>End of over ${Math.floor(i.balls / 6)} — next bowler</h3>
+    ${playerSelect('nbw_name', bowlingPlayers(), [current])}
+    <div style="margin-top:14px"><button class="green" style="width:100%" onclick="confirmBowler()">Confirm</button></div>
+    <div style="margin-top:8px;text-align:center"><button style="border:none;background:none;color:var(--muted)" onclick="undo()">↩ Undo last ball instead</button></div>`);
+}
+window.confirmBowler = () => {
+  const name = selVal('nbw_name');
+  if (!name) return toast('Name required');
+  send('newBowler', { name });
+};
+
+function renderFinished() {
+  const rows = S.innings.map((i, idx) => {
+    const t = teams()[i.battingTeam];
+    return `<div class="bat"><span class="n">${esc(t.name)}</span><span>${i.runs}/${i.wickets} (${overStr(i.balls)})</span></div>`;
+  }).join('');
+  $('#main').innerHTML = `
+    <div class="card">
+      <div class="result">🏆 ${esc(S.result)}</div>
+      ${rows}
+      <div class="grid g2" style="margin-top:14px">
+        <button onclick="undo()">↩ Undo last ball</button>
+        <button class="red" onclick="resetMatchConfirm()">Reset match</button>
+      </div>
+    </div>`;
+}
+</script>
+</body>
+</html>
