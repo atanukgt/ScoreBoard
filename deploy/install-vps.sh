@@ -143,6 +143,10 @@ if $DO_NGINX; then
       -e "s|127.0.0.1:3100|127.0.0.1:$HOST_PORT|g" \
       deploy/nginx.conf.example > "$VHOST"
   ln -sf "$VHOST" /etc/nginx/sites-enabled/scoreboard-live.conf
+  # Clean up the temporary ACME-only vhost if a previous certbot issuance left one
+  # behind. Without this, alphabetical order on sites-enabled/ makes the ACME
+  # vhost win over the real one and proxy_pass is never reached.
+  rm -f /etc/nginx/sites-enabled/scoreboard-live-acme.conf
   nginx -t
   systemctl reload nginx
 
