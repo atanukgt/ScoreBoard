@@ -102,14 +102,15 @@ app.get('/api/matches', requireAdmin, (req, res) => {
     const cfg = JSON.parse(m.config);
     return {
       id: m.id, sport: m.sport, title: m.title, status: m.status,
-      created_at: m.created_at, control_token: m.control_token,
+      created_at: m.created_at, scheduled_at: m.scheduled_at || null,
+      control_token: m.control_token,
       home: cfg.teams.home.name, away: cfg.teams.away.name,
     };
   }));
 });
 
 app.post('/api/matches', requireAdmin, (req, res) => {
-  const { sport, title, home_team_id, away_team_id, options = {} } = req.body || {};
+  const { sport, title, home_team_id, away_team_id, scheduled_at, options = {} } = req.body || {};
   if (!['football', 'cricket'].includes(sport)) return res.status(400).json({ error: 'sport must be football|cricket' });
   if (!home_team_id || !away_team_id) return res.status(400).json({ error: 'both teams required' });
   try {
@@ -126,7 +127,13 @@ app.post('/api/matches', requireAdmin, (req, res) => {
     } else {
       config.halfMinutes = Math.max(1, Math.min(60, options.halfMinutes | 0 || 45));
     }
-    const id = matches.create({ sport, title, home_team_id, away_team_id, config });
+    // Accept scheduled_at as ISO string or epoch ms; clamp to integer ms.
+    let sched = null;
+    if (scheduled_at != null && scheduled_at !== '') {
+      const n = typeof scheduled_at === 'string' ? Date.parse(scheduled_at) : Number(scheduled_at);
+      if (Number.isFinite(n)) sched = n;
+    }
+    const id = matches.create({ sport, title, home_team_id, away_team_id, scheduled_at: sched, config });
     res.json({ id });
   } catch (e) {
     res.status(400).json({ error: e.message });
@@ -164,11 +171,15 @@ app.get('/api/tournaments', requireAdmin, (req, res) => {
   res.json(tournaments.list().map(tournamentPayload));
 });
 app.post('/api/tournaments', requireAdmin, (req, res) => {
-  const { name, sport } = req.body || {};
+  const { name, sport, format } = req.body || {};
   if (!name || !['football', 'cricket'].includes(sport)) {
     return res.status(400).json({ error: 'name and sport (football|cricket) required' });
   }
-  const id = tournaments.create({ name: String(name).trim(), sport });
+  const id = tournaments.create({
+    name: String(name).trim(),
+    sport,
+    format: format === 'single' ? 'single' : 'league',
+  });
   res.json({ id });
 });
 app.delete('/api/tournaments/:id', requireAdmin, (req, res) => {
@@ -199,6 +210,15 @@ app.post('/api/tournaments/:id/teams', requireAdmin, (req, res) => {
   }
   if (!clean.length) return res.status(400).json({ error: 'no valid team ids' });
   tournamentTeams.addMany(t.id, clean);
+  res.json(tournamentPayload(tournaments.get(t.id)));
+});
+
+app.delete('/api/tournaments/:id/teams/:teamId', requireAdmin, (req, res) => {
+  const t = tournaments.get(req.params.id);
+  if (!t) return res.status(404).json({ error: 'tournament not found' });
+  const tid = Number(req.params.teamId);
+  if (!Number.isInteger(tid)) return res.status(400).json({ error: 'invalid team id' });
+  tournamentTeams.remove(t.id, tid);
   res.json(tournamentPayload(tournaments.get(t.id)));
 });
 
@@ -308,6 +328,11 @@ app.get('/api/tournaments/:id/info', (req, res) => {
 app.get('/api/sponsors/public', (req, res) => {
   const activeOnly = req.query.active === '1' || req.query.active === 'true';
   res.json(sponsors.list(activeOnly ? { activeOnly: true } : {}));
+});
+
+// Public active-only sponsor list (for control page dropdown — no admin needed)
+app.get('/api/sponsors/active', (req, res) => {
+  res.json(sponsors.list({ activeOnly: true }));
 });
 
 // ---------- pages ----------

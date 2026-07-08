@@ -1,13 +1,17 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<title>Sponsor Overlay</title>
-<style>
+  <meta charset="utf-8">
+  <title>Sponsor Overlay</title>
+  <style>
   /* Transparent 1920x1080 page — designed for an OBS browser source.
      Up to 6 simultaneous sponsor slots. Each fades in/out on rotation.
      Sponsors in the same position rotate sequentially based on
-     interval_seconds (per-sponsor dwell). */
+     interval_seconds (per-sponsor dwell).
+
+     The overlay also joins the `sponsor-overlay` Socket.IO room so the
+     operator's control page can fire `sponsor:feature` to put a specific
+     sponsor on stream for N seconds (overriding rotation at that slot). */
   html, body {
     margin: 0; padding: 0; background: transparent; overflow: hidden;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
@@ -17,9 +21,8 @@
   .slot {
     position: absolute;
     display: flex; align-items: center; justify-content: center;
-    pointer-events: none; /* let OBS underlying graphics receive clicks */
+    pointer-events: none;
   }
-  /* If a sponsor has a link, the inner <a> re-enables pointer events. */
   .slot a { pointer-events: auto; display: block; text-decoration: none; }
 
   .slot .img {
@@ -45,26 +48,25 @@
     width: 720px; height: 160px;
   }
 
-  .label {
-    margin-top: 8px; font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
-    color: rgba(255,255,255,.55); text-shadow: 0 1px 2px rgba(0,0,0,.5);
-  }
-</style>
+  /* Brief "featured" badge so the operator sees which sponsor was just pushed. */
+  .slot.featured .img { box-shadow: 0 0 0 3px var(--accent, #38bdf8), 0 8px 32px rgba(0,0,0,.4); }
+  </style>
 </head>
 <body>
 <!-- All 6 slots pre-rendered; the JS toggles `.show` and swaps the inner img. -->
-<div class="slot top-left"     id="slot-top-left"     data-pos="top-left"></div>
-<div class="slot top-right"    id="slot-top-right"    data-pos="top-right"></div>
-<div class="slot bottom-left"  id="slot-bottom-left"  data-pos="bottom-left"></div>
-<div class="slot bottom-right" id="slot-bottom-right" data-pos="bottom-right"></div>
-<div class="slot top-banner"   id="slot-top-banner"   data-pos="top-banner"></div>
+<div class="slot top-left"      id="slot-top-left"      data-pos="top-left"></div>
+<div class="slot top-right"     id="slot-top-right"     data-pos="top-right"></div>
+<div class="slot bottom-left"   id="slot-bottom-left"   data-pos="bottom-left"></div>
+<div class="slot bottom-right"  id="slot-bottom-right"  data-pos="bottom-right"></div>
+<div class="slot top-banner"    id="slot-top-banner"    data-pos="top-banner"></div>
 <div class="slot center-banner" id="slot-center-banner" data-pos="center-banner"></div>
 
+<script src="/socket.io/socket.io.js"></script>
 <script>
 const REFRESH_MS = 5000;
 const slotsByPos = {};
 document.querySelectorAll('.slot').forEach((el) => {
-  slotsByPos[el.dataset.pos] = { el, currentIdx: -1, timer: null };
+  slotsByPos[el.dataset.pos] = { el, currentIdx: -1, timer: null, featuredTimer: null, featuredUntil: 0 };
 });
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({
@@ -73,12 +75,15 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({
 
 function clearSlot(slot) {
   if (slot.timer) { clearTimeout(slot.timer); slot.timer = null; }
+  if (slot.featuredTimer) { clearTimeout(slot.featuredTimer); slot.featuredTimer = null; }
+  slot.featuredUntil = 0;
   slot.el.classList.remove('show');
+  slot.el.classList.remove('featured');
   // Defer the innerHTML wipe so the fade-out plays.
   setTimeout(() => { if (!slot.el.classList.contains('show')) slot.el.innerHTML = ''; }, 700);
 }
 
-function showSponsor(slot, sponsor, holdMs) {
+function showSponsor(slot, sponsor, holdMs, featured) {
   const imgUrl = `/uploads/${encodeURIComponent(sponsor.image_path)}`;
   const inner = sponsor.link
     ? `<a href="${esc(sponsor.link)}" target="_blank" rel="noopener noreferrer">
@@ -88,8 +93,9 @@ function showSponsor(slot, sponsor, holdMs) {
   slot.el.innerHTML = inner;
   // Force a reflow so the transition runs reliably.
   void slot.el.offsetWidth;
+  slot.el.classList.toggle('featured', !!featured);
   slot.el.classList.add('show');
-  if (slot.timer) clearTimeout(slot.timer);
+  if (slot.timer) { clearTimeout(slot.timer); slot.timer = null; }
   slot.timer = setTimeout(() => {
     slot.el.classList.remove('show');
     slot.timer = null;
@@ -101,8 +107,7 @@ function tickPosition(sponsorsInPos, slot) {
   slot.currentIdx = (slot.currentIdx + 1) % sponsorsInPos.length;
   const s = sponsorsInPos[slot.currentIdx];
   const holdMs = Math.max(1000, (s.interval_seconds || 8) * 1000);
-  showSponsor(slot, s, holdMs);
-  // chain — after fade out + brief pause, advance to next
+  showSponsor(slot, s, holdMs, false);
   if (slot.timer) {
     const prev = slot.timer;
     slot.timer = setTimeout(() => tickPosition(sponsorsInPos, slot), holdMs + 800);
@@ -121,19 +126,50 @@ async function refresh() {
       (grouped[s.position] ||= []).push(s);
     }
     for (const [pos, slot] of Object.entries(slotsByPos)) {
+      // Don't disturb a featured-sponsor render — it owns the slot until expiry.
+      if (slot.featuredUntil > Date.now()) continue;
       const here = grouped[pos] || [];
       if (!here.length) { clearSlot(slot); continue; }
-      // Order within a position: created_at DESC (newest first) — DB gives that.
       tickPosition(here, slot);
     }
   } catch (e) {
-    // Silently ignore; OBS will retry on next interval.
     console.error('sponsor fetch failed', e);
   }
 }
 
 refresh();
 setInterval(refresh, REFRESH_MS);
+
+// ---- live "Show now" from operator control ----
+const socket = io({ auth: { role: 'sponsor-overlay' } });
+socket.on('sponsor:feature', (msg) => {
+  const sp = msg && msg.sponsor;
+  if (!sp) return;
+  const pos = sp.position;
+  const slot = slotsByPos[pos];
+  if (!slot) return;
+  // Cancel any rotation timer so this sponsor holds the slot cleanly.
+  if (slot.timer) { clearTimeout(slot.timer); slot.timer = null; }
+  if (slot.featuredTimer) { clearTimeout(slot.featuredTimer); slot.featuredTimer = null; }
+  const holdMs = Math.max(2000, (msg.duration_seconds || 8) * 1000);
+  showSponsor(slot, sp, holdMs, true);
+  slot.featuredUntil = Date.now() + holdMs;
+  slot.featuredTimer = setTimeout(() => {
+    slot.featuredTimer = null;
+    slot.featuredUntil = 0;
+    slot.el.classList.remove('featured');
+    // Force a refresh so rotation resumes immediately.
+    refresh();
+  }, holdMs + 200);
+});
+socket.on('sponsor:cleared', () => {
+  for (const slot of Object.values(slotsByPos)) {
+    if (slot.featuredTimer) { clearTimeout(slot.featuredTimer); slot.featuredTimer = null; }
+    slot.featuredUntil = 0;
+    slot.el.classList.remove('featured');
+  }
+  refresh();
+});
 </script>
 </body>
 </html>

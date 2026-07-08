@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS matches (
   title TEXT,
   home_team_id INTEGER,
   away_team_id INTEGER,
+  scheduled_at INTEGER,
   config TEXT NOT NULL,
   control_token TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'live',
@@ -48,6 +49,7 @@ CREATE TABLE IF NOT EXISTS tournaments (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
   sport TEXT NOT NULL CHECK (sport IN ('football','cricket')),
+  format TEXT NOT NULL DEFAULT 'league',
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','completed')),
   created_at INTEGER NOT NULL
 );
@@ -74,6 +76,14 @@ CREATE TABLE IF NOT EXISTS sponsors (
   created_at INTEGER NOT NULL
 );
 `);
+
+// ---- idempotent migrations for pre-existing DBs ----
+// SQLite can't ADD CHECK constraints in ALTER, so we only ADD COLUMN here.
+function tryAlter(sql) {
+  try { db.exec(sql); } catch (e) { /* column already exists */ }
+}
+tryAlter(`ALTER TABLE tournaments ADD COLUMN format TEXT NOT NULL DEFAULT 'league'`);
+tryAlter(`ALTER TABLE matches ADD COLUMN scheduled_at INTEGER`);
 
 // ---- teams ----
 export const teams = {
@@ -105,13 +115,13 @@ export const players = {
 export const matches = {
   list: () => db.prepare('SELECT * FROM matches ORDER BY created_at DESC').all(),
   get: (id) => db.prepare('SELECT * FROM matches WHERE id = ?').get(id),
-  create: ({ sport, title, home_team_id, away_team_id, config }) => {
+  create: ({ sport, title, home_team_id, away_team_id, scheduled_at, config }) => {
     const id = crypto.randomBytes(4).toString('hex');
     const token = crypto.randomBytes(16).toString('hex');
-    db.prepare(`INSERT INTO matches (id, sport, title, home_team_id, away_team_id, config, control_token, status, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 'live', ?)`)
+    db.prepare(`INSERT INTO matches (id, sport, title, home_team_id, away_team_id, scheduled_at, config, control_token, status, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'live', ?)`)
       .run(id, sport, title || null, home_team_id || null, away_team_id || null,
-           JSON.stringify(config), token, Date.now());
+           scheduled_at || null, JSON.stringify(config), token, Date.now());
     return id;
   },
   setStatus: (id, status) =>
@@ -138,9 +148,9 @@ export const events = {
 export const tournaments = {
   list: () => db.prepare('SELECT * FROM tournaments ORDER BY created_at DESC').all(),
   get: (id) => db.prepare('SELECT * FROM tournaments WHERE id = ?').get(id),
-  create: ({ name, sport }) =>
-    db.prepare('INSERT INTO tournaments (name, sport, status, created_at) VALUES (?, ?, ?, ?)')
-      .run(name, sport, 'active', Date.now()).lastInsertRowid,
+  create: ({ name, sport, format }) =>
+    db.prepare('INSERT INTO tournaments (name, sport, format, status, created_at) VALUES (?, ?, ?, ?, ?)')
+      .run(name, sport, format === 'single' ? 'single' : 'league', 'active', Date.now()).lastInsertRowid,
   setStatus: (id, status) =>
     db.prepare('UPDATE tournaments SET status = ? WHERE id = ?').run(status, id),
   remove: (id) => db.prepare('DELETE FROM tournaments WHERE id = ?').run(id),

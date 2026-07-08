@@ -1,4 +1,4 @@
-import { matches, events } from './db.js';
+import { matches, events, sponsors } from './db.js';
 import * as football from './sports/football.js';
 import * as cricket from './sports/cricket.js';
 
@@ -6,6 +6,11 @@ const engines = { football, cricket };
 
 // In-memory cache: matchId -> { config, sport, state, seq }
 const live = new Map();
+
+// In-memory featured-sponsor state. Operators in any control panel can fire
+// `sponsor:feature` to highlight a sponsor on the overlay for N seconds.
+// Stored as { sponsorId, until, sponsor: <row> } or null.
+let featured = null;
 
 function loadMatch(matchId) {
   if (live.has(matchId)) return live.get(matchId);
@@ -38,7 +43,21 @@ export function invalidate(matchId) {
 
 export function setupSockets(io) {
   io.on('connection', (socket) => {
-    const { matchId, token } = socket.handshake.auth || {};
+    const { matchId, token, role } = socket.handshake.auth || {};
+
+    // Sponsor overlay: no matchId, joins the sponsor-overlay room only.
+    if (role === 'sponsor-overlay') {
+      socket.join('sponsor-overlay');
+      if (featured && featured.until > Date.now()) {
+        socket.emit('sponsor:feature', {
+          sponsor: serializeSponsor(featured.sponsor),
+          duration_seconds: Math.max(1, Math.ceil((featured.until - Date.now()) / 1000)),
+          until: featured.until,
+        });
+      }
+      return;
+    }
+
     const entry = loadMatch(matchId);
     if (!entry) {
       socket.emit('err', { error: 'match not found' });
@@ -77,7 +96,57 @@ export function setupSockets(io) {
         ack?.({ ok: false, error: e.message });
       }
     });
+
+    // Operator triggers: highlight a sponsor on the global sponsor overlay for N seconds.
+    // The overlay listens on the `sponsor-overlay` room. We also broadcast `sponsor:cleared`
+    // when the feature window expires.
+    socket.on('sponsor:feature', (msg, ack) => {
+      if (!isControl) return ack?.({ ok: false, error: 'control token required' });
+      const sponsorId = Number(msg?.sponsor_id);
+      const duration = Math.max(2, Math.min(60, Number(msg?.duration_seconds) || 8));
+      const row = Number.isInteger(sponsorId) ? sponsors.get(sponsorId) : null;
+      if (!row || !row.active) return ack?.({ ok: false, error: 'sponsor not found or inactive' });
+      const until = Date.now() + duration * 1000;
+      featured = { sponsorId, until, sponsor: row };
+      io.to('sponsor-overlay').emit('sponsor:feature', {
+        sponsor: serializeSponsor(row),
+        duration_seconds: duration,
+        until,
+      });
+      ack?.({ ok: true, until });
+      // Schedule a clear event so the overlay knows when to fall back to rotation.
+      setTimeout(() => {
+        if (featured && featured.until === until) {
+          featured = null;
+          io.to('sponsor-overlay').emit('sponsor:cleared');
+        }
+      }, duration * 1000);
+    });
+
+    socket.on('sponsor:clear', (ack) => {
+      if (!isControl) return ack?.({ ok: false, error: 'control token required' });
+      if (featured) {
+        featured = null;
+        io.to('sponsor-overlay').emit('sponsor:cleared');
+      }
+      ack?.({ ok: true });
+    });
   });
+}
+
+// Sponsor overlay connects without a matchId/token but joins the broadcast room
+// so it can receive `sponsor:feature` / `sponsor:cleared`. We expose a thin
+// shim by allowing handshake { role: 'sponsor-overlay' } to also land here.
+function serializeSponsor(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    image_path: row.image_path,
+    image_url: `/uploads/${row.image_path}`,
+    link: row.link,
+    position: row.position,
+    interval_seconds: row.interval_seconds,
+  };
 }
 
 function snapshot(entry, isControl) {

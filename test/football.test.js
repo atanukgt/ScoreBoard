@@ -145,19 +145,20 @@ test('clearLastCard clears lastCard and undo restores pre-card state', () => {
   assert.equal(reset.lastCard, null);
 });
 
-test('negative card delta does not push to cardLog (corrects typos cleanly)', () => {
+test('negative card delta removes the matching log entry (× delete button)', () => {
   let s = initialState(config);
   s = reduce(s, ev('setPeriod', { period: '1H' }, 0));
   s = reduce(s, ev('startClock', {}, 0));
   s = reduce(s, ev('card', { team: 'home', color: 'y', delta: 1, name: 'Silva' }, 5 * 60_000));
-  // User tapped the wrong color — adjust down with a follow-up yellow to
-  // balance and an unset delta. A negative delta must NOT add a phantom entry.
-  s = reduce(s, ev('card', { team: 'home', color: 'y', delta: -1 }, 5 * 60_000));
+  s = reduce(s, ev('card', { team: 'home', color: 'r', delta: 1, name: 'Costa' }, 6 * 60_000));
+  assert.equal(s.cardLog.length, 2);
+  // × delete next to yellow — drops the LAST yellow entry but leaves the red alone.
+  s = reduce(s, ev('card', { team: 'home', color: 'y', delta: -1 }, 7 * 60_000));
   assert.equal(s.cardLog.length, 1);
-  assert.deepEqual(s.cards.home, { y: 0, r: 0 });
-  // lastCard still points at the (now-cancelled) issuance; clear via clearLastCard.
-  s = reduce(s, ev('clearLastCard'));
-  assert.equal(s.lastCard, null);
+  assert.deepEqual(s.cardLog[0], { team: 'home', color: 'r', name: 'Costa', minute: 7, at: 6 * 60_000 });
+  assert.deepEqual(s.cards.home, { y: 0, r: 1 });
+  // lastCard should now re-derive to the red entry (since yellow was the banner).
+  assert.equal(s.lastCard.color, 'r');
 });
 
 test('replay determinism', () => {

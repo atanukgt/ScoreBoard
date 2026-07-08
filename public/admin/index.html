@@ -1,92 +1,144 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Scoreboard Live — Admin</title>
-<style>
-  :root {
-    --bg: #0f172a; --panel: #1e293b; --panel2: #273449; --line: #334155;
-    --text: #e2e8f0; --muted: #94a3b8; --accent: #38bdf8; --green: #34d399; --red: #f87171;
-  }
-  * { box-sizing: border-box; }
-  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-         background: var(--bg); color: var(--text); }
-  header { display: flex; align-items: center; gap: 12px; padding: 14px 20px;
-           background: var(--panel); border-bottom: 1px solid var(--line); }
-  header h1 { font-size: 18px; margin: 0; letter-spacing: .5px;
-              white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; }
-  header .spacer { flex: 1; }
-  main { max-width: 1000px; margin: 0 auto; padding: 20px; }
-  h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin: 28px 0 12px; }
-  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 12px; }
-  label { display: block; font-size: 12px; color: var(--muted); margin: 8px 0 4px; }
-  input, select, textarea, button {
-    font: inherit; color: var(--text); background: var(--panel2);
-    border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px;
-    max-width: 100%; min-width: 0;
-  }
-  input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); border-color: transparent; }
-  input[type="text"], input[type="number"], input[type="password"], input[type="url"], input[type="email"] {
-    width: 100%;
-  }
-  input[type="file"] { width: 100%; max-width: 100%; font-size: 13px; padding: 6px 8px; }
-  input[type="color"] { min-width: 60px; max-width: 80px; height: 38px; padding: 2px; }
-  select { width: 100%; }
-  textarea { width: 100%; min-height: 90px; resize: vertical; }
-  button { cursor: pointer; }
-  button.primary { background: var(--accent); color: #082f49; font-weight: 700; border: none; }
-  button.danger { background: transparent; color: var(--red); border-color: var(--red); }
-  button.ghost { background: transparent; }
-  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
-  .row > div { flex: 1; min-width: 0; }
-  .row > div.fixed, .row > div[style*="width:"] { flex: 0 0 auto; }
-  .team-item, .match-item { display: flex; gap: 10px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
-  .team-item:last-child, .match-item:last-child { border-bottom: none; }
-  .crest { width: 36px; height: 36px; border-radius: 50%; background: var(--panel2); object-fit: contain;
-           display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; flex: none; }
-  .dot { width: 14px; height: 14px; border-radius: 50%; flex: none; border: 1px solid rgba(255,255,255,.3); }
-  .badge { font-size: 11px; padding: 2px 8px; border-radius: 20px; background: var(--panel2); color: var(--muted); text-transform: uppercase; letter-spacing: 1px; flex: none; }
-  .badge.cricket { color: #fbbf24; } .badge.football { color: var(--green); }
-  .links { display: flex; gap: 6px; flex-wrap: wrap; flex: 1 0 100%; margin-top: 6px; }
-  .links button, .links a { font-size: 12px; padding: 6px 10px; text-decoration: none; color: var(--accent); background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; }
-  .item-name { flex: 1 1 100px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .item-name strong { font-weight: 700; }
-  .item-actions { display: flex; flex-wrap: wrap; gap: 6px; flex: 1 1 100%; margin-top: 4px; }
-  .item-actions button, .item-actions a { font-size: 12px; padding: 6px 10px; }
-  .item-actions button { font: inherit; border: 1px solid var(--line); background: var(--panel2); color: var(--text);
-                        border-radius: 6px; cursor: pointer; }
-  .item-actions button.danger { color: var(--red); border-color: var(--red); background: transparent; }
-  .item-actions a { text-decoration: none; color: var(--accent); background: var(--panel2);
-                    border: 1px solid var(--line); border-radius: 6px; }
-  .muted { color: var(--muted); font-size: 13px; }
-  /* Mobile layout fixes */
-  @media (max-width: 600px) {
-    header { padding: 10px 14px; gap: 8px; }
-    header h1 { font-size: 15px; }
-    main { padding: 14px; }
-    .card { padding: 12px; }
-    .row { gap: 8px; }
-    h2 { font-size: 13px; margin: 22px 0 10px; }
-    .item-actions { gap: 5px; }
-    .item-actions button, .item-actions a { font-size: 11px; padding: 5px 8px; }
-  }
-  @media (max-width: 380px) {
-    header h1 { font-size: 14px; letter-spacing: 0; }
-    header { padding: 10px 12px; }
-    main { padding: 10px; }
-    .card { padding: 10px; }
-    .item-actions button, .item-actions a { font-size: 10px; padding: 4px 7px; }
-    #logoutBtn { padding: 6px 10px; font-size: 12px; }
-  }
-  #login { max-width: 340px; margin: 12vh auto; }
-  #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-           background: var(--green); color: #052e1c; font-weight: 700; padding: 10px 18px;
-           border-radius: 30px; opacity: 0; transition: opacity .25s; pointer-events: none; }
-  .grow { flex: 1; min-width: 160px; }
-  details summary { cursor: pointer; color: var(--accent); font-size: 13px; margin-top: 6px; }
-  .hidden { display: none !important; }
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Scoreboard Live — Admin</title>
+  <style>
+    :root {
+      --bg: #0f172a; --panel: #1e293b; --panel2: #273449; --line: #334155;
+      --text: #e2e8f0; --muted: #94a3b8; --accent: #38bdf8; --green: #34d399; --red: #f87171;
+      --amber: #fbbf24;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+           background: var(--bg); color: var(--text); }
+    header { display: flex; align-items: center; gap: 12px; padding: 14px 20px;
+             background: var(--panel); border-bottom: 1px solid var(--line); }
+    header h1 { font-size: 18px; margin: 0; letter-spacing: .5px; }
+    header .spacer { flex: 1; }
+    main { max-width: 1000px; margin: 0 auto; padding: 20px; }
+    h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin: 24px 0 12px; }
+    h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin: 16px 0 8px; }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 12px; }
+    label { display: block; font-size: 12px; color: var(--muted); margin: 8px 0 4px; }
+    input, select, textarea, button {
+      font: inherit; color: var(--text); background: var(--panel2);
+      border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px;
+    }
+    input[type=date], input[type=datetime-local] { color-scheme: dark; }
+    input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); border-color: transparent; }
+    textarea { width: 100%; min-height: 90px; resize: vertical; }
+    button { cursor: pointer; }
+    button.primary { background: var(--accent); color: #082f49; font-weight: 700; border: none; }
+    button.danger { background: transparent; color: var(--red); border-color: var(--red); }
+    button.ghost { background: transparent; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
+    .row > div { flex: 1; min-width: 130px; }
+    .team-item, .match-item { display: flex; gap: 10px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+    .team-item:last-child, .match-item:last-child { border-bottom: none; }
+    .crest { width: 36px; height: 36px; border-radius: 50%; background: var(--panel2); object-fit: contain;
+             display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; flex: none; }
+    .dot { width: 14px; height: 14px; border-radius: 50%; flex: none; border: 1px solid rgba(255,255,255,.3); }
+    .badge { font-size: 11px; padding: 2px 8px; border-radius: 20px; background: var(--panel2); color: var(--muted); text-transform: uppercase; letter-spacing: 1px; flex: none; }
+    .badge.cricket { color: #fbbf24; } .badge.football { color: var(--green); }
+    .badge.league { color: var(--accent); } .badge.single { color: var(--muted); }
+    .links { display: flex; gap: 6px; flex-wrap: wrap; flex: 1 0 100%; margin-top: 6px; }
+    .links button, .links a { font-size: 12px; padding: 6px 10px; text-decoration: none; color: var(--accent); background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; }
+    .item-name { flex: 1 1 100px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .item-name strong { font-weight: 700; }
+    .item-actions { display: flex; flex-wrap: wrap; gap: 6px; flex: 1 1 100%; margin-top: 4px; }
+    .item-actions button, .item-actions a { font-size: 12px; padding: 6px 10px; }
+    .item-actions button { font: inherit; border: 1px solid var(--line); background: var(--panel2); color: var(--text);
+                           border-radius: 6px; cursor: pointer; }
+    .item-actions button.danger { color: var(--red); border-color: var(--red); background: transparent; }
+    .item-actions a { text-decoration: none; color: var(--accent); background: var(--panel2);
+                      border: 1px solid var(--line); border-radius: 6px; }
+    .muted { color: var(--muted); font-size: 13px; }
+    #login { max-width: 340px; margin: 12vh auto; }
+    #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+             background: var(--green); color: #052e1c; font-weight: 700; padding: 10px 18px;
+             border-radius: 30px; opacity: 0; transition: opacity .25s; pointer-events: none; z-index: 100; }
+    .grow { flex: 1; min-width: 160px; }
+    details summary { cursor: pointer; color: var(--accent); font-size: 13px; margin-top: 6px; }
+    .hidden { display: none !important; }
+
+    /* ---- Tabs ---- */
+    .tabs { display: flex; gap: 0; padding: 0 20px; background: var(--panel); border-bottom: 1px solid var(--line);
+            overflow-x: auto; }
+    .tab { padding: 12px 18px; cursor: pointer; color: var(--muted); font-weight: 600; font-size: 14px;
+           border-bottom: 3px solid transparent; white-space: nowrap; transition: all .15s; user-select: none;
+           display: flex; align-items: center; gap: 6px; }
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .tab .step-num { display: inline-flex; align-items: center; justify-content: center;
+                     width: 22px; height: 22px; border-radius: 50%; background: var(--panel2);
+                     font-size: 11px; font-weight: 700; }
+    .tab.active .step-num { background: var(--accent); color: #082f49; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ---- Tournament wizard steps ---- */
+    .step { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+            padding: 16px; margin-bottom: 12px; }
+    .step .step-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .step .step-head .num { display: inline-flex; align-items: center; justify-content: center;
+                            width: 26px; height: 26px; border-radius: 50%; background: var(--accent);
+                            color: #082f49; font-weight: 800; font-size: 13px; flex: none; }
+    .step .step-head h3 { margin: 0; color: var(--text); text-transform: none; letter-spacing: 0; font-size: 14px; }
+    .step .step-head .hint { color: var(--muted); font-size: 12px; }
+    .step-body { padding-left: 36px; }
+    .step.done .step-head .num { background: var(--green); color: #052e1c; }
+    .step.disabled { opacity: .55; }
+    .step.disabled .step-body { pointer-events: none; }
+
+    /* ---- Team picker chips ---- */
+    .chip-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+    .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px;
+            background: var(--panel2); border: 1px solid var(--line); border-radius: 20px; font-size: 12px; }
+    .chip .x { cursor: pointer; color: var(--red); font-weight: 700; padding-left: 4px; }
+    .chip .x:hover { color: #fff; background: var(--red); border-radius: 50%; }
+
+    .pick-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 6px;
+                 padding: 8px; background: rgba(0,0,0,.18); border-radius: 8px; max-height: 220px; overflow-y: auto; }
+    .pick-grid label { display: flex; align-items: center; gap: 6px; margin: 0; padding: 6px;
+                       border-radius: 6px; cursor: pointer; font-size: 13px; color: var(--text); }
+    .pick-grid label:hover { background: var(--panel2); }
+    .pick-grid input[type=checkbox] { width: auto; padding: 0; }
+
+    /* ---- Standings table ---- */
+    .standings { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+    .standings th { text-align: left; padding: 6px 8px; color: var(--muted);
+                    border-bottom: 1px solid var(--line); font-weight: 600; font-size: 11px;
+                    text-transform: uppercase; letter-spacing: 1px; }
+    .standings td { padding: 6px 8px; border-bottom: 1px solid var(--line); }
+    .standings .pos { font-weight: 700; }
+    .standings .pos-1 { color: #fbbf24; }
+    .standings .pos-2 { color: #cbd5e1; }
+    .standings .pos-3 { color: #b45309; }
+    .standings .pts { color: var(--amber); font-weight: 700; }
+
+    /* Mobile layout fixes */
+    @media (max-width: 600px) {
+      header { padding: 10px 14px; gap: 8px; }
+      header h1 { font-size: 15px; }
+      main { padding: 14px; }
+      .card, .step { padding: 12px; }
+      .row { gap: 8px; }
+      h2 { font-size: 13px; margin: 18px 0 10px; }
+      .item-actions { gap: 5px; }
+      .item-actions button, .item-actions a { font-size: 11px; padding: 5px 8px; }
+      .tab { padding: 10px 12px; font-size: 13px; }
+    }
+    @media (max-width: 380px) {
+      header h1 { font-size: 14px; letter-spacing: 0; }
+      header { padding: 10px 12px; }
+      main { padding: 10px; }
+      .card, .step { padding: 10px; }
+      .item-actions button, .item-actions a { font-size: 10px; padding: 4px 7px; }
+      #logoutBtn { padding: 6px 10px; font-size: 12px; }
+    }
+  </style>
 </head>
 <body>
 <header>
@@ -94,6 +146,13 @@
   <div class="spacer"></div>
   <button id="logoutBtn" class="ghost hidden">Log out</button>
 </header>
+
+<div class="tabs" id="tabs">
+  <div class="tab active" data-tab="tournament"><span class="step-num">1</span> Tournament</div>
+  <div class="tab" data-tab="teams"><span class="step-num">2</span> Teams</div>
+  <div class="tab" data-tab="matches"><span class="step-num">3</span> Matches</div>
+  <div class="tab" data-tab="sponsors"><span class="step-num">4</span> Sponsors</div>
+</div>
 
 <div id="login" class="card hidden">
   <h2 style="margin-top:0">Admin login</h2>
@@ -104,91 +163,128 @@
 </div>
 
 <main id="app" class="hidden">
-  <h2>Create match</h2>
-  <div class="card">
-    <div class="row">
-      <div><label>Sport</label>
-        <select id="mSport">
-          <option value="football">Football</option>
-          <option value="cricket">Cricket</option>
-        </select>
+
+  <!-- ============ TAB 1: Tournament (primary flow) ============ -->
+  <section class="tab-panel active" id="tab-tournament">
+
+    <div class="step" id="step-create">
+      <div class="step-head">
+        <div class="num">1</div>
+        <div>
+          <h3>Create tournament</h3>
+          <div class="hint">Pick <strong>one-day</strong> for a single friendly match, or <strong>tournament</strong> for a league with a leaderboard.</div>
+        </div>
       </div>
-      <div class="grow"><label>Title (optional)</label><input id="mTitle" placeholder="Sunday League Final"></div>
-    </div>
-    <div class="row">
-      <div><label>Home team</label><select id="mHome"></select></div>
-      <div><label>Away team</label><select id="mAway"></select></div>
-    </div>
-    <div class="row" id="cricketOpts" style="display:none">
-      <div><label>Overs / innings</label><input type="number" id="mOvers" value="20" min="1" max="50"></div>
-      <div><label>Players / side</label><input type="number" id="mPlayers" value="11" min="2" max="11"></div>
-      <div><label>Toss won by</label><select id="mTossWinner"><option value="home">Home</option><option value="away">Away</option></select></div>
-      <div><label>Elected to</label><select id="mTossDecision"><option value="bat">Bat</option><option value="bowl">Bowl</option></select></div>
-    </div>
-    <div class="row" id="footballOpts">
-      <div><label>Minutes per half</label><input type="number" id="mHalf" value="45" min="1" max="60"></div>
-    </div>
-    <div style="margin-top:14px"><button class="primary" id="createMatch">Create match</button> <span class="muted" id="createMsg"></span></div>
-  </div>
-
-  <h2>Matches</h2>
-  <div class="card" id="matchList"><p class="muted">No matches yet.</p></div>
-
-  <h2>Teams</h2>
-  <div class="card">
-    <div class="row">
-      <div class="grow"><label>Team name</label><input id="tName" placeholder="Lions CC"></div>
-      <div><label>Short (4)</label><input id="tShort" maxlength="4" placeholder="LIO" style="width:90px"></div>
-      <div><label>Colour</label><input type="color" id="tColor" value="#1d4ed8" style="height:38px;width:60px;padding:2px"></div>
-      <div><button class="primary" id="addTeam">Add team</button></div>
-    </div>
-  </div>
-  <div class="card" id="teamList"><p class="muted">No teams yet.</p></div>
-
-  <h2>Tournaments</h2>
-  <div class="card">
-    <div class="row">
-      <div class="grow"><label>Tournament name</label><input id="tnName" placeholder="Kumarghat League"></div>
-      <div><label>Sport</label>
-        <select id="tnSport">
-          <option value="football">Football</option>
-          <option value="cricket">Cricket</option>
-        </select>
+      <div class="step-body">
+        <div class="row">
+          <div class="grow"><label>Tournament name</label><input id="tnName" placeholder="Kumarghat League"></div>
+          <div><label>Sport</label>
+            <select id="tnSport">
+              <option value="football">Football</option>
+              <option value="cricket">Cricket</option>
+            </select>
+          </div>
+          <div><label>Format</label>
+            <select id="tnFormat">
+              <option value="single">One-day (single match)</option>
+              <option value="league" selected>Tournament (league + leaderboard)</option>
+            </select>
+          </div>
+          <div><button class="primary" id="addTournament">Create</button></div>
+        </div>
       </div>
-      <div><button class="primary" id="addTournament">Create tournament</button></div>
     </div>
-  </div>
-  <div class="card" id="tournamentList"><p class="muted">No tournaments yet.</p></div>
 
-  <h2>Sponsors</h2>
-  <div class="card">
-    <div class="row">
-      <div class="grow"><label>Name</label><input id="spName" placeholder="DC Auto Parts"></div>
-      <div><label>Image (≤ 2 MB)</label><input type="file" id="spFile" accept="image/png,image/jpeg,image/svg+xml,image/webp,image/gif"></div>
-      <div class="grow"><label>Link URL (optional)</label><input id="spLink" placeholder="https://example.com"></div>
-    </div>
-    <div class="row">
-      <div><label>Position</label>
-        <select id="spPosition">
-          <option value="top-left">top-left</option>
-          <option value="top-right">top-right</option>
-          <option value="bottom-left">bottom-left</option>
-          <option value="bottom-right">bottom-right</option>
-          <option value="top-banner">top-banner</option>
-          <option value="center-banner">center-banner</option>
-        </select>
+    <h2>Tournaments</h2>
+    <div id="tournamentList"><p class="muted">No tournaments yet.</p></div>
+  </section>
+
+  <!-- ============ TAB 2: Teams ============ -->
+  <section class="tab-panel" id="tab-teams">
+    <h2 style="margin-top:0">Add a team</h2>
+    <div class="card">
+      <div class="row">
+        <div class="grow"><label>Team name</label><input id="tName" placeholder="Lions CC"></div>
+        <div><label>Short (4)</label><input id="tShort" maxlength="4" placeholder="LIO" style="width:90px"></div>
+        <div><label>Colour</label><input type="color" id="tColor" value="#1d4ed8" style="height:38px;width:60px;padding:2px"></div>
+        <div><button class="primary" id="addTeam">Add team</button></div>
       </div>
-      <div><label>Interval (seconds)</label><input type="number" id="spInterval" value="8" min="1" max="600"></div>
-      <div><label>&nbsp;</label><button class="primary" id="addSponsor">Add sponsor</button></div>
     </div>
-  </div>
-  <div class="card" id="sponsorList"><p class="muted">No sponsors yet.</p></div>
+    <h2>Existing teams</h2>
+    <div class="card" id="teamList"><p class="muted">No teams yet.</p></div>
+  </section>
+
+  <!-- ============ TAB 3: Matches (schedule) ============ -->
+  <section class="tab-panel" id="tab-matches">
+    <h2 style="margin-top:0">Schedule a match</h2>
+    <div class="card">
+      <div class="muted" style="margin-bottom:10px">
+        Tip: schedule matches under a tournament on the <strong>Tournament</strong> tab — the leaderboard updates as matches finish.
+      </div>
+      <div class="row">
+        <div><label>Sport</label>
+          <select id="mSport">
+            <option value="football">Football</option>
+            <option value="cricket">Cricket</option>
+          </select>
+        </div>
+        <div class="grow"><label>Title (optional)</label><input id="mTitle" placeholder="Sunday League Final"></div>
+        <div><label>Date &amp; time</label><input type="datetime-local" id="mWhen"></div>
+      </div>
+      <div class="row">
+        <div><label>Home team</label><select id="mHome"></select></div>
+        <div><label>Away team</label><select id="mAway"></select></div>
+      </div>
+      <div class="row" id="cricketOpts" style="display:none">
+        <div><label>Overs / innings</label><input type="number" id="mOvers" value="20" min="1" max="50"></div>
+        <div><label>Players / side</label><input type="number" id="mPlayers" value="11" min="2" max="11"></div>
+        <div><label>Toss won by</label><select id="mTossWinner"><option value="home">Home</option><option value="away">Away</option></select></div>
+        <div><label>Elected to</label><select id="mTossDecision"><option value="bat">Bat</option><option value="bowl">Bowl</option></select></div>
+      </div>
+      <div class="row" id="footballOpts">
+        <div><label>Minutes per half</label><input type="number" id="mHalf" value="45" min="1" max="60"></div>
+      </div>
+      <div style="margin-top:14px"><button class="primary" id="createMatch">Create match</button> <span class="muted" id="createMsg"></span></div>
+    </div>
+
+    <h2>All matches</h2>
+    <div class="card" id="matchList"><p class="muted">No matches yet.</p></div>
+  </section>
+
+  <!-- ============ TAB 4: Sponsors ============ -->
+  <section class="tab-panel" id="tab-sponsors">
+    <h2 style="margin-top:0">Add a sponsor / ad</h2>
+    <div class="card">
+      <div class="row">
+        <div class="grow"><label>Name</label><input id="spName" placeholder="DC Auto Parts"></div>
+        <div><label>Image (≤ 2 MB)</label><input type="file" id="spFile" accept="image/png,image/jpeg,image/svg+xml,image/webp,image/gif"></div>
+        <div class="grow"><label>Link URL (optional)</label><input id="spLink" placeholder="https://example.com"></div>
+      </div>
+      <div class="row">
+        <div><label>Position</label>
+          <select id="spPosition">
+            <option value="top-left">top-left</option>
+            <option value="top-right">top-right</option>
+            <option value="bottom-left">bottom-left</option>
+            <option value="bottom-right">bottom-right</option>
+            <option value="top-banner">top-banner</option>
+            <option value="center-banner">center-banner</option>
+          </select>
+        </div>
+        <div><label>Interval (seconds)</label><input type="number" id="spInterval" value="8" min="1" max="600"></div>
+        <div><label>&nbsp;</label><button class="primary" id="addSponsor">Add sponsor</button></div>
+      </div>
+    </div>
+    <h2>Active &amp; inactive sponsors</h2>
+    <div class="card" id="sponsorList"><p class="muted">No sponsors yet.</p></div>
+  </section>
 </main>
 
 <div id="toast"></div>
 
 <script>
 const $ = (s) => document.querySelector(s);
+const $$ = (s) => document.querySelectorAll(s);
 const api = async (url, opts = {}) => {
   const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...opts });
   const data = await res.json().catch(() => ({}));
@@ -202,11 +298,20 @@ const toast = (msg) => {
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 let TEAMS = [];
+let TOURNAMENTS = [];
+
+// ---- tabs ----
+$$('.tab').forEach((t) => t.addEventListener('click', () => {
+  $$('.tab').forEach((x) => x.classList.toggle('active', x === t));
+  const target = t.dataset.tab;
+  $$('.tab-panel').forEach((p) => p.classList.toggle('active', p.id === 'tab-' + target));
+}));
 
 async function boot() {
   const me = await api('/api/me');
   $('#login').classList.toggle('hidden', me.admin);
   $('#app').classList.toggle('hidden', !me.admin);
+  $('#tabs').style.display = me.admin ? '' : 'none';
   $('#logoutBtn').classList.toggle('hidden', !me.admin);
   if (me.admin) {
     await refreshTeams();
@@ -301,11 +406,13 @@ $('#mSport').onchange = () => {
 $('#createMatch').onclick = async () => {
   try {
     const sport = $('#mSport').value;
+    const when = $('#mWhen').value; // datetime-local format
     const body = {
       sport,
       title: $('#mTitle').value.trim(),
       home_team_id: +$('#mHome').value,
       away_team_id: +$('#mAway').value,
+      scheduled_at: when ? new Date(when).toISOString() : null,
       options: sport === 'cricket'
         ? { oversPerInnings: +$('#mOvers').value, playersPerSide: +$('#mPlayers').value,
             tossWinner: $('#mTossWinner').value, tossDecision: $('#mTossDecision').value }
@@ -313,10 +420,7 @@ $('#createMatch').onclick = async () => {
     };
     if (body.home_team_id === body.away_team_id) throw new Error('Pick two different teams');
     await api('/api/matches', { method: 'POST', body: JSON.stringify(body) });
-    // Reset form so the next match doesn't inherit title / wrong team
-    $('#mTitle').value = '';
-    $('#createMsg').textContent = '';
-    // Default home/away: first team home, second team away (if available)
+    $('#mTitle').value = ''; $('#mWhen').value = ''; $('#createMsg').textContent = '';
     if (TEAMS.length >= 2) { $('#mHome').selectedIndex = 0; $('#mAway').selectedIndex = 1; }
     toast('Match created'); refreshMatches();
   } catch (e) { $('#createMsg').textContent = e.message; }
@@ -327,20 +431,30 @@ async function refreshMatches() {
   $('#matchList').innerHTML = list.length ? list.map(matchRow).join('') : '<p class="muted">No matches yet.</p>';
 }
 
+function fmtDate(ms) {
+  if (!ms) return null;
+  try {
+    const d = new Date(Number(ms));
+    if (isNaN(d.getTime())) return null;
+    return d.toLocaleString();
+  } catch { return null; }
+}
+
 function matchRow(m) {
   const controlUrl = `${location.origin}/control/${m.id}?token=${m.control_token}`;
   const overlayUrl = `${location.origin}/overlay/${m.id}`;
+  const when = fmtDate(m.scheduled_at);
   return `<div class="match-item">
     <span class="badge ${m.sport}">${m.sport}</span>
     <div class="item-name">
       <strong>${esc(m.home)} v ${esc(m.away)}</strong>
-      <span class="muted">${m.title ? esc(m.title) + ' · ' : ''}${new Date(m.created_at).toLocaleDateString()}</span>
+      <span class="muted">${m.title ? esc(m.title) + ' · ' : ''}${when ? '🗓 ' + esc(when) + ' · ' : ''}${new Date(m.created_at).toLocaleDateString()}</span>
     </div>
     <div class="item-actions">
-      <a href="${controlUrl}" target="_blank">Open</a>
+      <a href="${controlUrl}" target="_blank">Open control</a>
       <button onclick="copyText('${controlUrl}')">Control link</button>
       <button onclick="copyText('${overlayUrl}')">Overlay link</button>
-      <a href="${overlayUrl}" target="_blank">Preview</a>
+      <a href="${overlayUrl}" target="_blank">Preview overlay</a>
       <button class="danger" onclick="delMatch('${m.id}')">Delete</button>
     </div>
   </div>`;
@@ -351,122 +465,240 @@ window.delMatch = async (id) => {
   if (!confirm('Delete this match and its full scoring history?')) return;
   await api(`/api/matches/${id}`, { method: 'DELETE' });
   refreshMatches();
+  refreshTournaments();
 };
 
 // ---- tournaments ----
 async function refreshTournaments() {
   const list = await api('/api/tournaments');
+  TOURNAMENTS = list;
   $('#tournamentList').innerHTML = list.length
-    ? list.map(tournamentRow).join('')
-    : '<p class="muted">No tournaments yet.</p>';
+    ? list.map(tournamentPanel).join('')
+    : '<p class="muted">No tournaments yet — create one above to get started.</p>';
 }
 
-function tournamentRow(t) {
+function teamById(id) { return TEAMS.find((t) => t.id === id); }
+
+function tournamentPanel(t) {
   const overlayUrl = `${location.origin}/overlay/tournament/${t.id}`;
-  return `<div class="match-item" data-id="${t.id}">
-    <span class="badge ${t.sport}">${t.sport}</span>
-    <div class="item-name">
-      <strong>${esc(t.name)}</strong>
-      <span class="muted">${t.team_count} teams · ${t.match_count} matches · ${esc(t.status)}</span>
-    </div>
-    <div class="item-actions">
-      <button onclick="viewStandings(${t.id}, '${esc(t.name)}')">Standings</button>
-      <a href="${overlayUrl}" target="_blank">Open overlay</a>
-      <button onclick="copyText('${overlayUrl}')">Copy overlay link</button>
-      <button onclick="toggleAddTeams(${t.id})">Add teams</button>
-      <button onclick="toggleAddMatch(${t.id})">Schedule match</button>
-      <button class="danger" onclick="delTournament(${t.id})">Delete</button>
-    </div>
-    <div class="hidden" id="addTeams-${t.id}" style="width:100%">
-      <label>Pick teams</label>
-      <select id="atSel-${t.id}" multiple size="6" style="min-width:260px">
-        ${TEAMS.map((team) => `<option value="${team.id}">${esc(team.name)}</option>`).join('')}
-      </select>
-      <div style="margin-top:8px"><button class="primary" onclick="saveAddTeams(${t.id})">Save teams</button></div>
-    </div>
-    <div class="hidden" id="addMatch-${t.id}" style="width:100%">
-      <div class="row">
-        <div class="grow"><label>Existing match id</label><input id="amId-${t.id}" placeholder="paste match id from Matches section"></div>
-        <div><label>Round</label><input type="number" id="amRound-${t.id}" value="1" min="1"></div>
-        <div><label>Group (optional)</label><input id="amGroup-${t.id}" placeholder="A"></div>
+  const inTournament = t.team_ids || [];
+  const notInTournament = TEAMS.filter((x) => !inTournament.includes(x.id));
+  const fmtBadge = t.format === 'single' ? 'single' : 'league';
+  return `<div class="card" data-id="${t.id}" style="margin-bottom:14px">
+    <div class="match-item" style="border-bottom:none">
+      <span class="badge ${t.sport}">${t.sport}</span>
+      <span class="badge ${fmtBadge}">${t.format === 'single' ? 'one-day' : 'tournament'}</span>
+      <div class="item-name">
+        <strong>${esc(t.name)}</strong>
+        <span class="muted">${t.team_count} teams · ${t.match_count} matches · ${esc(t.status)}</span>
       </div>
-      <div style="margin-top:8px"><button class="primary" onclick="saveAddMatch(${t.id})">Attach match</button></div>
+      <div class="item-actions">
+        <a href="${overlayUrl}" target="_blank">Standings overlay</a>
+        <button onclick="copyText('${overlayUrl}')">Copy overlay link</button>
+        <button onclick="markComplete(${t.id})">${t.status === 'active' ? 'Mark completed' : 'Re-open'}</button>
+        <button class="danger" onclick="delTournament(${t.id})">Delete</button>
+      </div>
     </div>
-    <div class="hidden" id="stand-${t.id}" style="width:100%"></div>
+
+    <!-- Step 2: Teams -->
+    <div class="step" style="margin-top:12px">
+      <div class="step-head">
+        <div class="num">2</div>
+        <div><h3>Teams in this tournament</h3>
+          <div class="hint">Tick to add. Tap <strong>×</strong> on a chip to remove.</div></div>
+      </div>
+      <div class="step-body">
+        <div class="chip-list" id="tChips-${t.id}">
+          ${inTournament.length === 0 ? '<span class="muted">No teams yet — pick some below.</span>' : ''}
+          ${inTournament.map((id) => {
+            const team = teamById(id);
+            if (!team) return '';
+            return `<span class="chip" data-team="${id}">
+              <span class="dot" style="background:${esc(team.color)};width:10px;height:10px"></span>
+              ${esc(team.name)}
+              <span class="x" onclick="removeTeamFromTournament(${t.id}, ${id}, '${esc(team.name)}')" title="Remove">×</span>
+            </span>`;
+          }).join('')}
+        </div>
+        ${notInTournament.length === 0 ? '<p class="muted">All available teams are already in this tournament.</p>' : `
+          <div class="pick-grid" id="tPicker-${t.id}">
+            ${notInTournament.map((team) => `
+              <label><input type="checkbox" value="${team.id}" data-team-name="${esc(team.name)}">
+                <span class="dot" style="background:${esc(team.color)};width:10px;height:10px"></span>
+                ${esc(team.name)}
+              </label>
+            `).join('')}
+          </div>
+          <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+            <button class="primary" onclick="addCheckedTeams(${t.id})">Add checked teams</button>
+            <button class="ghost" onclick="selectAllPicker(${t.id})">Select all</button>
+            <button class="ghost" onclick="clearPicker(${t.id})">Clear</button>
+          </div>
+        `}
+      </div>
+    </div>
+
+    <!-- Step 3: Matches -->
+    <div class="step">
+      <div class="step-head">
+        <div class="num">3</div>
+        <div><h3>Schedule matches</h3>
+          <div class="hint">Pick two teams from the ones above. Set a date or leave blank for "any time".</div></div>
+      </div>
+      <div class="step-body">
+        ${inTournament.length < 2 ? '<p class="muted">Add at least 2 teams first.</p>' : `
+        <div class="row">
+          <div><label>Home</label>
+            <select id="tHome-${t.id}">
+              ${inTournament.map((id) => { const tm = teamById(id); return tm ? `<option value="${id}">${esc(tm.name)}</option>` : ''; }).join('')}
+            </select>
+          </div>
+          <div><label>Away</label>
+            <select id="tAway-${t.id}">
+              ${inTournament.map((id) => { const tm = teamById(id); return tm ? `<option value="${id}">${esc(tm.name)}</option>` : ''; }).join('')}
+            </select>
+          </div>
+          <div><label>Round</label><input type="number" id="tRound-${t.id}" value="1" min="1" style="width:80px"></div>
+          <div><label>Group</label><input id="tGroup-${t.id}" placeholder="A" style="width:80px"></div>
+          <div><label>Date &amp; time</label><input type="datetime-local" id="tWhen-${t.id}"></div>
+          <div><label>&nbsp;</label><button class="primary" onclick="scheduleMatchInTournament(${t.id})">Schedule &amp; open control</button></div>
+        </div>
+        `}
+        <div id="tMatchList-${t.id}" style="margin-top:10px"></div>
+      </div>
+    </div>
+
+    <!-- Standings preview -->
+    <div class="step">
+      <div class="step-head">
+        <div class="num">4</div>
+        <div><h3>Standings</h3>
+          <div class="hint">Updates automatically as matches finish. <a href="${overlayUrl}" target="_blank" style="color:var(--accent)">Open full overlay</a>.</div></div>
+      </div>
+      <div class="step-body">
+        <div id="tStand-${t.id}"><p class="muted">Loading…</p></div>
+      </div>
+    </div>
   </div>`;
 }
 
 window.addTournament = async () => {
   const name = $('#tnName').value.trim();
   const sport = $('#tnSport').value;
+  const format = $('#tnFormat').value;
   if (!name) return toast('Name required');
-  await api('/api/tournaments', { method: 'POST', body: JSON.stringify({ name, sport }) });
+  await api('/api/tournaments', { method: 'POST', body: JSON.stringify({ name, sport, format }) });
   $('#tnName').value = '';
-  toast('Tournament created');
+  toast(format === 'single' ? 'One-day match created' : 'Tournament created');
   refreshTournaments();
+  // Auto-jump to the tournament panel
+  if (format !== 'single') {
+    setTimeout(() => { window.scrollTo({ top: 200, behavior: 'smooth' }); }, 80);
+  }
 };
 $('#addTournament').onclick = window.addTournament;
 
 window.delTournament = async (id) => {
-  if (!confirm('Delete this tournament?')) return;
+  if (!confirm('Delete this tournament? Matches stay, but lose their tournament link.')) return;
   await api(`/api/tournaments/${id}`, { method: 'DELETE' });
   refreshTournaments();
 };
 
-window.toggleAddTeams = (id) => $(`#addTeams-${id}`).classList.toggle('hidden');
-window.toggleAddMatch = (id) => $(`#addMatch-${id}`).classList.toggle('hidden');
+window.markComplete = async (id) => {
+  const t = TOURNAMENTS.find((x) => x.id === id);
+  const next = t && t.status === 'active' ? 'completed' : 'active';
+  await api(`/api/tournaments/${id}`, { method: 'PUT', body: JSON.stringify({ status: next }) });
+  toast(next === 'completed' ? 'Marked completed' : 'Re-opened');
+  refreshTournaments();
+};
 
-window.saveAddTeams = async (id) => {
-  const sel = $(`#atSel-${id}`);
-  const team_ids = [...sel.selectedOptions].map((o) => +o.value).filter(Number.isInteger);
-  if (!team_ids.length) return toast('Pick at least one team');
+window.selectAllPicker = (id) => {
+  $$(`#tPicker-${id} input[type=checkbox]`).forEach((c) => { c.checked = true; });
+};
+window.clearPicker = (id) => {
+  $$(`#tPicker-${id} input[type=checkbox]`).forEach((c) => { c.checked = false; });
+};
+
+window.addCheckedTeams = async (id) => {
+  const boxes = $$(`#tPicker-${id} input[type=checkbox]`);
+  const team_ids = [...boxes].filter((c) => c.checked).map((c) => +c.value);
+  if (!team_ids.length) return toast('Tick at least one team');
   await api(`/api/tournaments/${id}/teams`, { method: 'POST', body: JSON.stringify({ team_ids }) });
   toast('Teams added');
   refreshTournaments();
 };
 
-window.saveAddMatch = async (id) => {
-  const match_id = $(`#amId-${id}`).value.trim();
-  const round = +$('#amRound-' + id).value || 1;
-  const group_name = $('#amGroup-' + id).value.trim() || null;
-  if (!match_id) return toast('Match id required');
-  await api(`/api/tournaments/${id}/matches`, {
-    method: 'POST',
-    body: JSON.stringify({ match_id, round, group_name }),
-  });
-  toast('Match scheduled');
+window.removeTeamFromTournament = async (id, teamId, name) => {
+  if (!confirm(`Remove "${name}" from this tournament?`)) return;
+  await api(`/api/tournaments/${id}/teams/${teamId}`, { method: 'DELETE' });
+  toast('Team removed');
   refreshTournaments();
 };
 
-window.viewStandings = async (id, name) => {
-  const box = $(`#stand-${id}`);
-  if (!box.classList.contains('hidden')) { box.classList.add('hidden'); return; }
-  const rows = await api(`/api/tournaments/${id}/standings`);
-  box.classList.remove('hidden');
-  if (!Array.isArray(rows) || !rows.length) {
-    box.innerHTML = '<p class="muted">No standings yet — schedule and complete some matches first.</p>';
-    return;
+window.scheduleMatchInTournament = async (tId) => {
+  const home = +$(`#tHome-${tId}`).value;
+  const away = +$(`#tAway-${tId}`).value;
+  const round = +$(`#tRound-${tId}`).value || 1;
+  const group_name = $(`#tGroup-${tId}`).value.trim() || null;
+  const when = $(`#tWhen-${tId}`).value;
+  if (home === away) return toast('Pick two different teams');
+  if (!TEAMS.find((t) => t.id === home) || !TEAMS.find((t) => t.id === away)) {
+    return toast('Both teams must be in this tournament');
   }
-  const headers = ['Pos', 'Team', 'P', 'W', 'D', 'L', 'GF', 'GA', 'GD', 'Pts'];
-  const html = ['<table style="width:100%;border-collapse:collapse;margin-top:8px;font-size:13px">'];
-  html.push('<thead><tr>' + headers.map((h) => `<th style="text-align:left;padding:6px 8px;color:var(--muted);border-bottom:1px solid var(--line)">${h}</th>`).join('') + '</tr></thead><tbody>');
-  rows.forEach((r, i) => {
-    html.push(`<tr>
-      <td style="padding:6px 8px;border-bottom:1px solid var(--line)">${i + 1}</td>
-      <td style="padding:6px 8px;border-bottom:1px solid var(--line)"><span class="dot" style="background:${esc(r.color)};display:inline-block;margin-right:6px"></span>${esc(r.name)}</td>
-      <td style="padding:6px 8px;border-bottom:1px solid var(--line)">${r.played}</td>
-      <td style="padding:6px 8px;border-bottom:1px solid var(--line)">${r.wins}</td>
-      <td style="padding:6px 8px;border-bottom:1px solid var(--line)">${r.draws}</td>
-      <td style="padding:6px 8px;border-bottom:1px solid var(--line)">${r.losses}</td>
-      <td style="padding:6px 8px;border-bottom:1px solid var(--line)">${r.gf}</td>
-      <td style="padding:6px 8px;border-bottom:1px solid var(--line)">${r.ga}</td>
-      <td style="padding:6px 8px;border-bottom:1px solid var(--line)">${r.gd > 0 ? '+' + r.gd : r.gd}</td>
-      <td style="padding:6px 8px;border-bottom:1px solid var(--line);color:#fbbf24;font-weight:700">${r.points}</td>
-    </tr>`);
-  });
-  html.push('</tbody></table>');
-  box.innerHTML = `<h3 style="margin:10px 0 4px;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Standings — ${esc(name)}</h3>${html.join('')}`;
+  // 1) Create the match with date
+  const tObj = TOURNAMENTS.find((x) => x.id === tId);
+  const created = await api('/api/matches', { method: 'POST', body: JSON.stringify({
+    sport: tObj.sport,
+    title: `${tObj.name} R${round}`,
+    home_team_id: home,
+    away_team_id: away,
+    scheduled_at: when ? new Date(when).toISOString() : null,
+    options: tObj.sport === 'cricket'
+      ? { oversPerInnings: 20, playersPerSide: 11, tossWinner: 'home', tossDecision: 'bat' }
+      : { halfMinutes: 45 },
+  })});
+  // 2) Attach to tournament
+  await api(`/api/tournaments/${tId}/matches`, { method: 'POST', body: JSON.stringify({
+    match_id: created.id, round, group_name,
+  })});
+  // 3) Fetch control token and open the control page in a new tab
+  const list = await api('/api/matches');
+  const m = list.find((x) => x.id === created.id);
+  if (m) window.open(`${location.origin}/control/${m.id}?token=${m.control_token}`, '_blank');
+  toast('Match scheduled');
+  refreshMatches();
+  refreshTournaments();
 };
+
+// ---- standings auto-load ----
+async function refreshTournamentExtras() {
+  for (const t of TOURNAMENTS) {
+    const box = $(`#tStand-${t.id}`);
+    if (!box) continue;
+    const rows = await api(`/api/tournaments/${t.id}/standings`);
+    if (!Array.isArray(rows) || !rows.length) {
+      box.innerHTML = '<p class="muted">No standings yet — complete some matches.</p>';
+      continue;
+    }
+    const headers = ['#', 'Team', 'P', 'W', 'D', 'L', 'GF', 'GA', 'GD', 'Pts'];
+    box.innerHTML = `<table class="standings">
+      <thead><tr>${headers.map((h) => `<th>${h}</th>`).join('')}</tr></thead>
+      <tbody>${rows.map((r, i) => `<tr>
+        <td class="pos pos-${i + 1}">${i + 1}</td>
+        <td><span class="dot" style="background:${esc(r.color)};display:inline-block;margin-right:6px"></span>${esc(r.name)}</td>
+        <td>${r.played}</td><td>${r.wins}</td><td>${r.draws}</td><td>${r.losses}</td>
+        <td>${r.gf}</td><td>${r.ga}</td>
+        <td>${r.gd > 0 ? '+' + r.gd : r.gd}</td>
+        <td class="pts">${r.points}</td>
+      </tr>`).join('')}</tbody></table>`;
+  }
+}
+// refresh standings every 5s while tournament panel is on screen
+setInterval(() => { if (!$('#tab-tournament').classList.contains('hidden') && TOURNAMENTS.length) refreshTournamentExtras(); }, 5000);
+
+// refresh standings right after refreshTournaments()
+const _refreshTournaments = refreshTournaments;
+refreshTournaments = async () => { await _refreshTournaments(); refreshTournamentExtras(); };
 
 // ---- sponsors ----
 async function refreshSponsors() {

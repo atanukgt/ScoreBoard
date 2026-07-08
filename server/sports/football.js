@@ -74,9 +74,8 @@ export function reduce(state, event) {
       const kind = payload.color === 'r' ? 'r' : 'y';
       const delta = payload.delta | 0;
       s.cards[payload.team][kind] = Math.max(0, s.cards[payload.team][kind] + delta);
-      // Only positive deltas (issuing a card) push to the log and update lastCard.
-      // Undo / adjust-down replay therefore cleans up automatically.
       if (delta > 0) {
+        // Issuing a card — push to log and update lastCard.
         const entry = {
           team: payload.team,
           color: kind,
@@ -86,6 +85,20 @@ export function reduce(state, event) {
         };
         s.cardLog.push(entry);
         s.lastCard = entry;
+      } else if (delta < 0) {
+        // Removing a card — drop the most recent matching log entry so the
+        // "recent cards" list mirrors the counter (and the overlay banner
+        // re-derives correctly from the truncated log).
+        for (let i = s.cardLog.length - 1; i >= 0; i--) {
+          const e = s.cardLog[i];
+          if (e.team === payload.team && e.color === kind) {
+            s.cardLog.splice(i, 1);
+            break;
+          }
+        }
+        if (s.lastCard && s.lastCard.team === payload.team && s.lastCard.color === kind) {
+          s.lastCard = s.cardLog[s.cardLog.length - 1] || null;
+        }
       }
       return s;
     }
