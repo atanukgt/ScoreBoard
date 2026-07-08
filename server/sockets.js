@@ -78,6 +78,11 @@ export function setupSockets(io) {
     }
     const isControl = token && token === entry.controlToken;
     socket.join(`match:${matchId}`);
+    // Sponsors are global to the whole app (one operator, one featured slot
+    // at a time) — every match socket subscribes too so per-match OBS
+    // overlays also render the pushed sponsor without needing a separate
+    // /overlay/sponsor browser source alongside.
+    socket.join('sponsor-overlay');
     socket.emit('state', snapshot(entry, isControl));
 
     socket.on('action', (msg, ack) => {

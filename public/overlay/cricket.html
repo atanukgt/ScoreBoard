@@ -85,6 +85,24 @@
             text-align:center; }
   #banner.show { display:block; }
   #banner .small { display:block; font-size:15px; color:#94a3b8; font-weight:600; margin-top:4px; }
+
+  /* ---- sponsor overlay (operator-triggered via sponsor:feature) ---- */
+  .slot { position: absolute; display: flex; align-items: center; justify-content: center;
+          pointer-events: none; }
+  .slot a { pointer-events: auto; display: block; text-decoration: none; }
+  .slot .img { display: block; max-width: 100%; max-height: 100%; border-radius: 8px;
+               box-shadow: 0 8px 32px rgba(0,0,0,.4);
+               opacity: 0; transition: opacity 0.6s ease-in-out; }
+  .slot.show .img { opacity: 1; }
+  .slot.top-left     { top: 32px;    left: 32px;    width: 360px; height: 140px; }
+  .slot.top-right    { top: 32px;    right: 32px;   width: 360px; height: 140px; }
+  .slot.bottom-left  { bottom: 32px; left: 32px;    width: 360px; height: 140px; }
+  .slot.bottom-right { bottom: 32px; right: 32px;   width: 360px; height: 140px; }
+  .slot.top-banner    { top: 32px; left: 50%; transform: translateX(-50%);
+                        width: 720px; height: 100px; }
+  .slot.center-banner { top: 50%; left: 50%; transform: translate(-50%, -50%);
+                        width: 720px; height: 160px; }
+  .slot.featured .img { box-shadow: 0 0 0 3px #38bdf8, 0 8px 32px rgba(0,0,0,.4); }
 </style>
 </head>
 <body>
@@ -122,6 +140,14 @@
 
 <div id="flash"></div>
 <div id="banner"></div>
+
+<!-- Sponsor overlay slots — invisible until the operator hits "Show on overlay" in any control panel. -->
+<div class="slot top-left"      id="slot-top-left"      data-pos="top-left"></div>
+<div class="slot top-right"     id="slot-top-right"     data-pos="top-right"></div>
+<div class="slot bottom-left"   id="slot-bottom-left"   data-pos="bottom-left"></div>
+<div class="slot bottom-right"  id="slot-bottom-right"  data-pos="bottom-right"></div>
+<div class="slot top-banner"    id="slot-top-banner"    data-pos="top-banner"></div>
+<div class="slot center-banner" id="slot-center-banner" data-pos="center-banner"></div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
@@ -247,6 +273,58 @@ function renderBanner(main, small) {
   b.innerHTML = `${main}<span class="small">${small || ''}</span>`;
   b.classList.add('show');
 }
+
+// ---- sponsor overlay: render operator-pushed sponsors on this OBS source ----
+const sponsorSlots = {};
+document.querySelectorAll('.slot[data-pos]').forEach((el) => {
+  sponsorSlots[el.dataset.pos] = { el, featuredTimer: null };
+});
+
+function renderFeatured(slot, sponsor, holdMs) {
+  const imgUrl = `/uploads/${encodeURIComponent(sponsor.image_path)}`;
+  const inner = sponsor.link
+    ? `<a href="${escapeHtml(sponsor.link)}" target="_blank" rel="noopener noreferrer">
+         <img class="img" src="${escapeHtml(imgUrl)}" alt="${escapeHtml(sponsor.name)}">
+       </a>`
+    : `<img class="img" src="${escapeHtml(imgUrl)}" alt="${escapeHtml(sponsor.name)}">`;
+  slot.el.innerHTML = inner;
+  void slot.el.offsetWidth;
+  slot.el.classList.add('featured');
+  slot.el.classList.add('show');
+  if (slot.featuredTimer) clearTimeout(slot.featuredTimer);
+  slot.featuredTimer = setTimeout(() => {
+    slot.el.classList.remove('show');
+    slot.featuredTimer = null;
+    setTimeout(() => {
+      if (!slot.el.classList.contains('show')) {
+        slot.el.classList.remove('featured');
+        slot.el.innerHTML = '';
+      }
+    }, 700);
+  }, holdMs);
+}
+
+function clearFeatured() {
+  for (const slot of Object.values(sponsorSlots)) {
+    if (slot.featuredTimer) { clearTimeout(slot.featuredTimer); slot.featuredTimer = null; }
+    slot.el.classList.remove('show');
+    setTimeout(() => {
+      if (!slot.el.classList.contains('show')) {
+        slot.el.classList.remove('featured');
+        slot.el.innerHTML = '';
+      }
+    }, 700);
+  }
+}
+
+socket.on('sponsor:feature', (msg) => {
+  const sp = msg && msg.sponsor;
+  if (!sp) return;
+  const slot = sponsorSlots[sp.position];
+  if (!slot) return;
+  renderFeatured(slot, sp, Math.max(2000, (msg.duration_seconds || 8) * 1000));
+});
+socket.on('sponsor:cleared', clearFeatured);
 </script>
 </body>
 </html>

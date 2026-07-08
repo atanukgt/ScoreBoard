@@ -66,6 +66,27 @@
                  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     /* Card row with × delete */
     .card-row { position: relative; }
+    /* ---- sponsor / ad trigger card ---- */
+    .sp-row { display:flex; align-items:center; gap:10px; margin-top:10px; }
+    .sp-row > label { flex: 0 0 70px; font-size:13px; color:var(--muted); font-weight:600; }
+    .sp-row select, .sp-row input { flex: 1 1 0; min-width:0; padding:10px 8px;
+                                     background:var(--panel2); color:var(--text); border:1px solid var(--line);
+                                     border-radius:8px; font-size:15px; font-weight:600; }
+    .sp-row .sp-unit { font-size:13px; color:var(--muted); font-weight:600; flex: 0 0 auto; }
+    .sp-pill { font-size:11px; font-weight:700; letter-spacing:.5px; padding:4px 9px;
+               border-radius:999px; background:var(--panel2); border:1px solid var(--line);
+               color:var(--muted); flex: 0 0 auto; }
+    .sp-pill.tl, .sp-pill.tr, .sp-pill.bl, .sp-pill.br,
+    .sp-pill.top-left, .sp-pill.top-right, .sp-pill.bottom-left, .sp-pill.bottom-right { color:var(--accent); border-color:var(--accent); }
+    .sp-pill.top-banner, .sp-pill.center-banner { color:var(--amber); border-color:var(--amber); }
+    .sp-buttons { display:grid; grid-template-columns:2fr 1fr; gap:8px; margin-top:14px; }
+    .sp-buttons button { padding:14px 6px; }
+    .sp-status { margin-top:12px; padding:10px 12px; border-radius:8px; font-size:13px;
+                 border:1px solid transparent; line-height:1.4; }
+    .sp-status--idle { color:var(--muted); background:transparent; border-color:var(--line); }
+    .sp-status--on   { color:#052e1c; background:var(--green); border-color:var(--green);
+                       font-weight:700; }
+    .sp-status--clr  { color:var(--text); background:var(--panel2); border-color:var(--line); }
     /* Modal */
     .modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.78); display:none;
                 align-items:center; justify-content:center; z-index:50; padding:16px; }
@@ -185,25 +206,27 @@
 
   <!-- Sponsor / ad trigger — shown only if any active sponsors exist -->
   <div class="card" id="sponsorCard" style="display:none">
-    <h3>Sponsor / ad</h3>
-    <div class="muted" style="margin-bottom:10px;font-size:12px">
-      Push a sponsor to <code>/overlay/sponsor</code> for the chosen duration. Rotation resumes automatically.
+    <h3 style="text-transform:none;letter-spacing:0;font-size:14px;color:var(--text)">
+      Sponsor / ad
+      <span style="font-weight:400;color:var(--muted);font-size:12px;margin-left:4px">
+        Push to OBS overlay
+      </span>
+    </h3>
+    <div class="sp-row">
+      <label for="spPick">Sponsor</label>
+      <select id="spPick"></select>
+      <span id="spPos" class="sp-pill">—</span>
     </div>
-    <div style="display:flex;flex-direction:column;gap:10px">
-      <div>
-        <label for="spPick">Pick sponsor</label>
-        <select id="spPick" style="width:100%"></select>
-      </div>
-      <div>
-        <label for="spDur">Duration (seconds)</label>
-        <input type="number" id="spDur" value="8" min="2" max="60" style="width:100%">
-      </div>
-      <div style="display:flex;gap:8px">
-        <button class="primary" id="spShow" onclick="showSponsor()" style="flex:2">▶ Show on overlay</button>
-        <button class="ghost" id="spClear" onclick="clearSponsor()" style="flex:1">Clear</button>
-      </div>
+    <div class="sp-row">
+      <label for="spDur">Hold for</label>
+      <input type="number" id="spDur" value="8" min="2" max="60">
+      <span class="sp-unit">seconds</span>
     </div>
-    <div class="muted" id="spStatus" style="margin-top:10px;font-size:12px"></div>
+    <div class="sp-buttons">
+      <button class="primary" id="spShow" onclick="showSponsor()">▶ Show on overlay</button>
+      <button class="ghost"   id="spClear" onclick="clearSponsor()">Clear</button>
+    </div>
+    <div id="spStatus" class="sp-status sp-status--idle">Idle — no ad is being featured</div>
   </div>
 
   <div class="card" id="shootout" style="display:none">
@@ -435,6 +458,21 @@ document.getElementById('modalBg').addEventListener('click', (e) => {
 
 // ---- sponsor / ad trigger ----
 let sponsorCache = [];
+function setSpStatus(text, cls) {
+  const s = $('#spStatus'); if (!s) return;
+  s.textContent = text;
+  s.classList.remove('sp-status--idle', 'sp-status--on', 'sp-status--clr');
+  s.classList.add('sp-status--' + cls);
+}
+function updateSpPosPill() {
+  const id = +($('#spPick')?.value || 0);
+  const pill = $('#spPos');
+  if (!pill) return;
+  const sp = sponsorCache.find((s) => s.id === id);
+  pill.textContent = sp ? sp.position : '—';
+  // Pill border colour reacts to the position class (set in CSS).
+  pill.className = 'sp-pill' + (sp ? ' ' + sp.position : '');
+}
 async function loadSponsors() {
   try { sponsorCache = await api('/api/sponsors/active'); }
   catch (e) { sponsorCache = []; }
@@ -443,10 +481,14 @@ async function loadSponsors() {
   if (!sponsorCache.length) { card.style.display = 'none'; return; }
   card.style.display = '';
   const sel = $('#spPick');
+  const prev = sel.value;
   sel.innerHTML = sponsorCache.map((s) =>
-    `<option value="${s.id}">${esc(s.name)} (${esc(s.position)})</option>`).join('');
+    `<option value="${s.id}">${esc(s.name)}</option>`).join('');
+  if (prev && sponsorCache.find((s) => String(s.id) === prev)) sel.value = prev;
+  updateSpPosPill();
   $('#spShow').disabled = false;
 }
+$('#spPick')?.addEventListener('change', updateSpPosPill);
 window.showSponsor = () => {
   const id = +$('#spPick').value;
   const dur = Math.max(2, Math.min(60, +$('#spDur').value || 8));
@@ -454,17 +496,20 @@ window.showSponsor = () => {
   socket.emit('sponsor:feature', { sponsor_id: id, duration_seconds: dur }, (res) => {
     if (res && !res.ok) { toast(res.error); return; }
     const sp = sponsorCache.find((s) => s.id === id);
-    $('#spStatus').textContent = `Showing "${sp ? sp.name : 'sponsor'}" on overlay for ${dur}s`;
+    setSpStatus(`Now on overlay — "${sp ? sp.name : 'sponsor'}" at ${sp?.position || '—'} for ${dur}s`, 'on');
+    setTimeout(() => setSpStatus('Idle — no ad is being featured', 'idle'), dur * 1000);
   });
 };
 window.clearSponsor = () => {
   socket.emit('sponsor:clear', (res) => {
     if (res && !res.ok) { toast(res.error); return; }
-    $('#spStatus').textContent = 'Sponsor cleared — rotation resumed';
+    setSpStatus('Cleared — rotation resumed', 'clr');
+    setTimeout(() => setSpStatus('Idle — no ad is being featured', 'idle'), 2400);
   });
 };
 loadSponsors();
 setInterval(loadSponsors, 15000);
+setSpStatus('Idle — no ad is being featured', 'idle');
 
 setInterval(() => {
   if (!S) return;
