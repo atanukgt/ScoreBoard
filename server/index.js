@@ -5,10 +5,10 @@ import fs from 'fs';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { Server } from 'socket.io';
-import { teams, players, matches, tournaments, tournamentTeams, tournamentMatches, sponsors, UPLOADS_DIR } from './db.js';
+import { teams, players, matches, events, tournaments, tournamentTeams, tournamentMatches, sponsors, UPLOADS_DIR } from './db.js';
 import { ADMIN_PASSWORD, makeSessionCookie, isAdminRequest, requireAdmin } from './auth.js';
 import { setupSockets, invalidate } from './sockets.js';
-import { computeStandings } from './tournament.js';
+import { computeStandings, replayMatch } from './tournament.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
@@ -97,6 +97,24 @@ function teamSnapshot(teamId) {
   };
 }
 
+// Result summary for a finished match (replayed from the event log).
+function matchResult(m) {
+  if (m.status !== 'finished') return null;
+  const evs = events.forMatch(m.id).map((e) => ({ type: e.type, payload: JSON.parse(e.payload), at: e.at }));
+  const state = replayMatch({ ...m, _events: evs });
+  if (!state) return null;
+  const cfg = JSON.parse(m.config);
+  if (m.sport === 'cricket') return state.result || null;
+  const { home, away } = state.score;
+  const base = `${cfg.teams.home.short} ${home}–${away} ${cfg.teams.away.short}`;
+  if (state.shootout && (state.shootout.home.length || state.shootout.away.length)) {
+    const hg = state.shootout.home.filter((k) => k === 'G').length;
+    const ag = state.shootout.away.filter((k) => k === 'G').length;
+    return `${base} (${hg}–${ag} pens)`;
+  }
+  return base;
+}
+
 app.get('/api/matches', requireAdmin, (req, res) => {
   res.json(matches.list().map((m) => {
     const cfg = JSON.parse(m.config);
@@ -105,6 +123,8 @@ app.get('/api/matches', requireAdmin, (req, res) => {
       created_at: m.created_at, scheduled_at: m.scheduled_at || null,
       control_token: m.control_token,
       home: cfg.teams.home.name, away: cfg.teams.away.name,
+      home_short: cfg.teams.home.short, away_short: cfg.teams.away.short,
+      result: matchResult(m),
     };
   }));
 });
@@ -143,6 +163,53 @@ app.post('/api/matches', requireAdmin, (req, res) => {
 app.delete('/api/matches/:id', requireAdmin, (req, res) => {
   matches.remove(req.params.id);
   invalidate(req.params.id);
+  res.json({ ok: true });
+});
+
+// Start a scheduled match. For cricket this is where the real toss (and any
+// last-minute format tweaks) get locked into the match config — scheduling a
+// match days ahead shouldn't require knowing who won the toss.
+app.post('/api/matches/:id/start', requireAdmin, (req, res) => {
+  const m = matches.get(req.params.id);
+  if (!m) return res.status(404).json({ error: 'not found' });
+  if (m.status === 'finished') return res.status(400).json({ error: 'match already finished' });
+  const opts = req.body?.options || {};
+  const cfg = JSON.parse(m.config);
+  // Config (incl. toss) is only mutable while the event log is empty —
+  // changing it later would corrupt the deterministic replay.
+  const hasEvents = events.forMatch(m.id).length > 0;
+  if (hasEvents) {
+    matches.setStatus(m.id, 'live');
+    return res.json({ ok: true, id: m.id, control_token: m.control_token, note: 'scoring already started; config unchanged' });
+  }
+  if (m.sport === 'cricket') {
+    cfg.toss = {
+      winner: opts.tossWinner === 'away' ? 'away' : 'home',
+      decision: opts.tossDecision === 'bowl' ? 'bowl' : 'bat',
+    };
+    if (opts.oversPerInnings) cfg.oversPerInnings = Math.max(1, Math.min(50, opts.oversPerInnings | 0));
+    if (opts.playersPerSide) cfg.playersPerSide = Math.max(2, Math.min(11, opts.playersPerSide | 0));
+  } else if (opts.halfMinutes) {
+    cfg.halfMinutes = Math.max(1, Math.min(60, opts.halfMinutes | 0));
+  }
+  matches.updateConfig(m.id, cfg);
+  matches.setStatus(m.id, 'live');
+  invalidate(m.id); // socket cache must pick up the new config
+  res.json({ ok: true, id: m.id, control_token: m.control_token });
+});
+
+// Re-schedule a match (change or clear its planned date/time).
+app.put('/api/matches/:id/schedule', requireAdmin, (req, res) => {
+  const m = matches.get(req.params.id);
+  if (!m) return res.status(404).json({ error: 'not found' });
+  let sched = null;
+  const v = req.body?.scheduled_at;
+  if (v != null && v !== '') {
+    const n = typeof v === 'string' ? Date.parse(v) : Number(v);
+    if (!Number.isFinite(n)) return res.status(400).json({ error: 'invalid date' });
+    sched = n;
+  }
+  matches.setSchedule(m.id, sched);
   res.json({ ok: true });
 });
 

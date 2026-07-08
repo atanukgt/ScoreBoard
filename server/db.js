@@ -119,13 +119,17 @@ export const matches = {
     const id = crypto.randomBytes(4).toString('hex');
     const token = crypto.randomBytes(16).toString('hex');
     db.prepare(`INSERT INTO matches (id, sport, title, home_team_id, away_team_id, scheduled_at, config, control_token, status, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'live', ?)`)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'scheduled', ?)`)
       .run(id, sport, title || null, home_team_id || null, away_team_id || null,
            scheduled_at || null, JSON.stringify(config), token, Date.now());
     return id;
   },
   setStatus: (id, status) =>
     db.prepare('UPDATE matches SET status = ? WHERE id = ?').run(status, id),
+  setSchedule: (id, scheduled_at) =>
+    db.prepare('UPDATE matches SET scheduled_at = ? WHERE id = ?').run(scheduled_at, id),
+  updateConfig: (id, config) =>
+    db.prepare('UPDATE matches SET config = ? WHERE id = ?').run(JSON.stringify(config), id),
   remove: (id) => db.prepare('DELETE FROM matches WHERE id = ?').run(id),
 };
 

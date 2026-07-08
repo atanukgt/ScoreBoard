@@ -66,6 +66,25 @@
 <div class="conn" id="conn"></div>
 <header id="title">Loading…</header>
 <main id="main"></main>
+
+<!-- Advertisement / sponsor trigger — outside #main so live re-renders don't wipe it -->
+<div style="max-width:520px;margin:0 auto;padding:0 14px 14px">
+  <div class="card" id="sponsorCard" style="display:none">
+    <h3>📣 Advertisement</h3>
+    <div class="muted" style="margin-bottom:10px;font-size:12px">
+      Push an ad to the <code>/overlay/sponsor</code> browser source for the chosen duration. Rotation resumes automatically.
+    </div>
+    <label for="spPick">Pick ad / sponsor</label>
+    <select id="spPick"></select>
+    <label for="spDur">Duration (seconds)</label>
+    <input type="number" id="spDur" value="8" min="2" max="60">
+    <div class="grid g2" style="margin-top:10px">
+      <button class="accent" id="spShow" onclick="showSponsor()">▶ Show on stream</button>
+      <button onclick="clearSponsor()">Clear</button>
+    </div>
+    <div class="muted" id="spStatus" style="margin-top:8px;font-size:12px"></div>
+  </div>
+</div>
 <div class="modal-bg" id="modalBg"><div class="modal" id="modal"></div></div>
 <div id="toast"></div>
 
@@ -359,6 +378,42 @@ window.confirmBowler = () => {
   if (!name) return toast('Name required');
   send('newBowler', { name });
 };
+
+// ---- advertisement / sponsor trigger ----
+const api = async (url) => {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('http ' + r.status);
+  return r.json();
+};
+let sponsorCache = [];
+async function loadSponsors() {
+  try { sponsorCache = await api('/api/sponsors/active'); }
+  catch { sponsorCache = []; }
+  const card = $('#sponsorCard');
+  if (!card) return;
+  if (!sponsorCache.length) { card.style.display = 'none'; return; }
+  card.style.display = '';
+  $('#spPick').innerHTML = sponsorCache.map((s) =>
+    `<option value="${s.id}">${esc(s.name)} (${esc(s.position)})</option>`).join('');
+}
+window.showSponsor = () => {
+  const id = +$('#spPick').value;
+  const dur = Math.max(2, Math.min(60, +$('#spDur').value || 8));
+  if (!id) return toast('Pick an ad first');
+  socket.emit('sponsor:feature', { sponsor_id: id, duration_seconds: dur }, (res) => {
+    if (res && !res.ok) return toast(res.error);
+    const sp = sponsorCache.find((s) => s.id === id);
+    $('#spStatus').textContent = `Showing "${sp ? sp.name : 'ad'}" on stream for ${dur}s`;
+  });
+};
+window.clearSponsor = () => {
+  socket.emit('sponsor:clear', (res) => {
+    if (res && !res.ok) return toast(res.error);
+    $('#spStatus').textContent = 'Ad cleared — rotation resumed';
+  });
+};
+loadSponsors();
+setInterval(loadSponsors, 15000);
 
 function renderFinished() {
   const rows = S.innings.map((i, idx) => {

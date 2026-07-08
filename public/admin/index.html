@@ -63,6 +63,27 @@
     details summary { cursor: pointer; color: var(--accent); font-size: 13px; margin-top: 6px; }
     .hidden { display: none !important; }
 
+    /* ---- match status badges ---- */
+    .badge.scheduled { color: var(--muted); }
+    .badge.live { color: #fff; background: var(--red); animation: livepulse 1.6s ease-in-out infinite; }
+    .badge.finished { color: var(--green); }
+    @keyframes livepulse { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
+    .result-text { color: var(--green); font-size: 12px; font-weight: 700; }
+    button.start { background: var(--green); color: #052e1c; border: none; font-weight: 700; }
+
+    /* ---- modal (toss / overlay builder) ---- */
+    .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.72); display: none;
+                align-items: center; justify-content: center; z-index: 90; padding: 16px; }
+    .modal-bg.open { display: flex; }
+    .modal { background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+             padding: 20px; width: 100%; max-width: 460px; max-height: 85vh; overflow: auto; }
+    .modal h3 { margin-top: 0; color: var(--text); text-transform: none; letter-spacing: 0; font-size: 16px; }
+    .choice2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .choice2 button.on { outline: 3px solid var(--accent); }
+    .urlbox { background: rgba(0,0,0,.35); border: 1px solid var(--line); border-radius: 8px;
+              padding: 8px 10px; font-size: 12px; color: var(--accent); word-break: break-all;
+              font-family: ui-monospace, monospace; margin-top: 10px; }
+
     /* ---- Tabs ---- */
     .tabs { display: flex; gap: 0; padding: 0 20px; background: var(--panel); border-bottom: 1px solid var(--line);
             overflow-x: auto; }
@@ -238,9 +259,10 @@
       <div class="row" id="cricketOpts" style="display:none">
         <div><label>Overs / innings</label><input type="number" id="mOvers" value="20" min="1" max="50"></div>
         <div><label>Players / side</label><input type="number" id="mPlayers" value="11" min="2" max="11"></div>
-        <div><label>Toss won by</label><select id="mTossWinner"><option value="home">Home</option><option value="away">Away</option></select></div>
-        <div><label>Elected to</label><select id="mTossDecision"><option value="bat">Bat</option><option value="bowl">Bowl</option></select></div>
       </div>
+      <p class="muted" id="cricketOptsNote" style="display:none;margin:6px 0 0">
+        The toss is captured when you <strong>start</strong> the match — no need to know it now.
+      </p>
       <div class="row" id="footballOpts">
         <div><label>Minutes per half</label><input type="number" id="mHalf" value="45" min="1" max="60"></div>
       </div>
@@ -281,6 +303,7 @@
 </main>
 
 <div id="toast"></div>
+<div class="modal-bg" id="modalBg"><div class="modal" id="modal"></div></div>
 
 <script>
 const $ = (s) => document.querySelector(s);
@@ -299,6 +322,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':
 
 let TEAMS = [];
 let TOURNAMENTS = [];
+let MATCHES = [];
 
 // ---- tabs ----
 $$('.tab').forEach((t) => t.addEventListener('click', () => {
@@ -400,6 +424,7 @@ $('#addTeam').onclick = async () => {
 $('#mSport').onchange = () => {
   const cricket = $('#mSport').value === 'cricket';
   $('#cricketOpts').style.display = cricket ? '' : 'none';
+  $('#cricketOptsNote').style.display = cricket ? '' : 'none';
   $('#footballOpts').style.display = cricket ? 'none' : '';
 };
 
@@ -414,8 +439,7 @@ $('#createMatch').onclick = async () => {
       away_team_id: +$('#mAway').value,
       scheduled_at: when ? new Date(when).toISOString() : null,
       options: sport === 'cricket'
-        ? { oversPerInnings: +$('#mOvers').value, playersPerSide: +$('#mPlayers').value,
-            tossWinner: $('#mTossWinner').value, tossDecision: $('#mTossDecision').value }
+        ? { oversPerInnings: +$('#mOvers').value, playersPerSide: +$('#mPlayers').value }
         : { halfMinutes: +$('#mHalf').value },
     };
     if (body.home_team_id === body.away_team_id) throw new Error('Pick two different teams');
@@ -427,8 +451,9 @@ $('#createMatch').onclick = async () => {
 };
 
 async function refreshMatches() {
-  const list = await api('/api/matches');
-  $('#matchList').innerHTML = list.length ? list.map(matchRow).join('') : '<p class="muted">No matches yet.</p>';
+  MATCHES = await api('/api/matches');
+  $('#matchList').innerHTML = MATCHES.length ? MATCHES.map(matchRow).join('') : '<p class="muted">No matches yet.</p>';
+  renderAllTournamentMatchLists();
 }
 
 function fmtDate(ms) {
@@ -440,25 +465,139 @@ function fmtDate(ms) {
   } catch { return null; }
 }
 
-function matchRow(m) {
+function statusBadge(m) {
+  const label = { scheduled: 'Scheduled', live: '● LIVE', finished: 'Finished' }[m.status] || m.status;
+  return `<span class="badge ${esc(m.status)}">${label}</span>`;
+}
+
+function matchActions(m) {
   const controlUrl = `${location.origin}/control/${m.id}?token=${m.control_token}`;
-  const overlayUrl = `${location.origin}/overlay/${m.id}`;
+  const out = [];
+  if (m.status === 'scheduled') {
+    out.push(`<button class="start" onclick="startMatchFlow('${m.id}')">▶ Start match</button>`);
+    out.push(`<button onclick="rescheduleMatch('${m.id}')">Change time</button>`);
+  } else {
+    out.push(`<a href="${controlUrl}" target="_blank">Open control</a>`);
+    out.push(`<button onclick="copyText('${controlUrl}')">Control link</button>`);
+  }
+  out.push(`<button onclick="openOverlayBuilder('${m.id}')">Overlay links</button>`);
+  out.push(`<button class="danger" onclick="delMatch('${m.id}')">Delete</button>`);
+  return out.join('');
+}
+
+function matchRow(m) {
   const when = fmtDate(m.scheduled_at);
   return `<div class="match-item">
     <span class="badge ${m.sport}">${m.sport}</span>
+    ${statusBadge(m)}
     <div class="item-name">
       <strong>${esc(m.home)} v ${esc(m.away)}</strong>
-      <span class="muted">${m.title ? esc(m.title) + ' · ' : ''}${when ? '🗓 ' + esc(when) + ' · ' : ''}${new Date(m.created_at).toLocaleDateString()}</span>
+      ${m.result ? `<span class="result-text">🏆 ${esc(m.result)}</span>` : ''}
+      <span class="muted">${m.title ? esc(m.title) + ' · ' : ''}${when ? '🗓 ' + esc(when) : ''}</span>
     </div>
-    <div class="item-actions">
-      <a href="${controlUrl}" target="_blank">Open control</a>
-      <button onclick="copyText('${controlUrl}')">Control link</button>
-      <button onclick="copyText('${overlayUrl}')">Overlay link</button>
-      <a href="${overlayUrl}" target="_blank">Preview overlay</a>
-      <button class="danger" onclick="delMatch('${m.id}')">Delete</button>
-    </div>
+    <div class="item-actions">${matchActions(m)}</div>
   </div>`;
 }
+
+// ---- start-match flow (toss for cricket) ----
+function openModal(html) { $('#modal').innerHTML = html; $('#modalBg').classList.add('open'); }
+window.closeModal = () => $('#modalBg').classList.remove('open');
+$('#modalBg').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeModal(); });
+
+window.startMatchFlow = (id) => {
+  const m = MATCHES.find((x) => x.id === id);
+  if (!m) return;
+  if (m.sport !== 'cricket') {
+    return doStartMatch(id, {});
+  }
+  window._toss = { winner: 'home', decision: 'bat' };
+  openModal(`
+    <h3>🪙 Toss — ${esc(m.home)} v ${esc(m.away)}</h3>
+    <label>Toss won by</label>
+    <div class="choice2">
+      <button id="tossHome" class="on" onclick="_toss.winner='home';tossHl()">${esc(m.home)}</button>
+      <button id="tossAway" onclick="_toss.winner='away';tossHl()">${esc(m.away)}</button>
+    </div>
+    <label>Elected to</label>
+    <div class="choice2">
+      <button id="tossBat" class="on" onclick="_toss.decision='bat';tossHl()">🏏 Bat</button>
+      <button id="tossBowl" onclick="_toss.decision='bowl';tossHl()">⚾ Bowl</button>
+    </div>
+    <div style="margin-top:16px;display:flex;gap:8px">
+      <button class="primary" style="flex:2" onclick="doStartMatch('${id}', {tossWinner:_toss.winner, tossDecision:_toss.decision})">Start match</button>
+      <button class="ghost" style="flex:1" onclick="closeModal()">Cancel</button>
+    </div>`);
+};
+window.tossHl = () => {
+  $('#tossHome').classList.toggle('on', _toss.winner === 'home');
+  $('#tossAway').classList.toggle('on', _toss.winner === 'away');
+  $('#tossBat').classList.toggle('on', _toss.decision === 'bat');
+  $('#tossBowl').classList.toggle('on', _toss.decision === 'bowl');
+};
+window.doStartMatch = async (id, options) => {
+  try {
+    const r = await api(`/api/matches/${id}/start`, { method: 'POST', body: JSON.stringify({ options }) });
+    closeModal();
+    toast('Match started — control panel opening');
+    window.open(`${location.origin}/control/${id}?token=${r.control_token}`, '_blank');
+    refreshMatches();
+  } catch (e) { toast(e.message); }
+};
+
+window.rescheduleMatch = async (id) => {
+  const v = prompt('New date & time (YYYY-MM-DD HH:MM), or empty to clear:');
+  if (v === null) return;
+  const iso = v.trim() ? new Date(v.trim().replace(' ', 'T')).toISOString() : '';
+  if (v.trim() && iso === 'Invalid Date') return toast('Could not parse that date');
+  await api(`/api/matches/${id}/schedule`, { method: 'PUT', body: JSON.stringify({ scheduled_at: iso }) });
+  toast('Schedule updated'); refreshMatches();
+};
+
+// ---- overlay link builder ----
+window.openOverlayBuilder = (id) => {
+  const m = MATCHES.find((x) => x.id === id);
+  if (!m) return;
+  const layouts = m.sport === 'cricket'
+    ? [['full', 'Lower third (full scorecard)'], ['bug', 'Compact bug (corner strip)']]
+    : [['bug', 'Score bug (corner strip)'], ['full', 'Lower third (full names)']];
+  openModal(`
+    <h3>🎥 Overlay link — ${esc(m.home_short || m.home)} v ${esc(m.away_short || m.away)}</h3>
+    <label>Layout</label>
+    <select id="obLayout" onchange="obUpdate('${id}')">${layouts.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>
+    <label>Corner position (bug layout)</label>
+    <select id="obPos" onchange="obUpdate('${id}')">
+      <option value="tl">Top left</option><option value="tr">Top right</option>
+      <option value="bl">Bottom left</option><option value="br">Bottom right</option>
+    </select>
+    <label>Size</label>
+    <select id="obScale" onchange="obUpdate('${id}')">
+      <option value="">Normal</option><option value="0.75">Small (75%)</option>
+      <option value="1.25">Large (125%)</option><option value="1.5">Extra large (150%)</option>
+    </select>
+    <label>Theme</label>
+    <select id="obTheme" onchange="obUpdate('${id}')">
+      <option value="">Dark (default)</option><option value="light">Light</option>
+    </select>
+    <div class="urlbox" id="obUrl"></div>
+    <div style="margin-top:12px;display:flex;gap:8px">
+      <button class="primary" style="flex:2" onclick="copyText($('#obUrl').textContent)">Copy link</button>
+      <button style="flex:1" onclick="window.open($('#obUrl').textContent,'_blank')">Preview</button>
+      <button class="ghost" style="flex:1" onclick="closeModal()">Close</button>
+    </div>
+    <p class="muted" style="margin-bottom:0">In OBS: Sources → + → Browser, paste this URL, set 1920×1080.</p>`);
+  obUpdate(id);
+};
+window.obUpdate = (id) => {
+  const p = new URLSearchParams();
+  const layout = $('#obLayout').value, pos = $('#obPos').value,
+        scale = $('#obScale').value, theme = $('#obTheme').value;
+  if (layout) p.set('layout', layout);
+  if (pos && pos !== 'tl' && layout === 'bug') p.set('pos', pos);
+  if (scale) p.set('scale', scale);
+  if (theme) p.set('theme', theme);
+  const q = p.toString();
+  $('#obUrl').textContent = `${location.origin}/overlay/${id}${q ? '?' + q : ''}`;
+};
 
 window.copyText = async (t) => { await navigator.clipboard.writeText(t); toast('Copied!'); };
 window.delMatch = async (id) => {
@@ -535,6 +674,16 @@ function tournamentPanel(t) {
             <button class="ghost" onclick="clearPicker(${t.id})">Clear</button>
           </div>
         `}
+        <details style="margin-top:10px">
+          <summary>+ Create a new team here</summary>
+          <div class="row" style="margin-top:8px">
+            <div class="grow"><label>Team name</label><input id="ntName-${t.id}" placeholder="Lions CC"></div>
+            <div><label>Short (4)</label><input id="ntShort-${t.id}" maxlength="4" placeholder="LIO" style="width:80px"></div>
+            <div><label>Colour</label><input type="color" id="ntColor-${t.id}" value="#1d4ed8" style="height:38px;width:60px;padding:2px"></div>
+            <div><button class="primary" onclick="createTeamInTournament(${t.id})">Create &amp; add</button></div>
+          </div>
+          <p class="muted" style="margin:6px 0 0">Add crest &amp; players later in the Teams tab.</p>
+        </details>
       </div>
     </div>
 
@@ -561,18 +710,36 @@ function tournamentPanel(t) {
           <div><label>Round</label><input type="number" id="tRound-${t.id}" value="1" min="1" style="width:80px"></div>
           <div><label>Group</label><input id="tGroup-${t.id}" placeholder="A" style="width:80px"></div>
           <div><label>Date &amp; time</label><input type="datetime-local" id="tWhen-${t.id}"></div>
-          <div><label>&nbsp;</label><button class="primary" onclick="scheduleMatchInTournament(${t.id})">Schedule &amp; open control</button></div>
+          ${t.sport === 'cricket' ? `
+          <div><label>Overs</label><input type="number" id="tOvers-${t.id}" value="20" min="1" max="50" style="width:80px"></div>
+          <div><label>Players/side</label><input type="number" id="tPlayers-${t.id}" value="11" min="2" max="11" style="width:80px"></div>
+          ` : `
+          <div><label>Mins/half</label><input type="number" id="tHalf-${t.id}" value="45" min="1" max="60" style="width:80px"></div>
+          `}
+          <div><label>&nbsp;</label><button class="primary" onclick="scheduleMatchInTournament(${t.id})">🗓 Schedule match</button></div>
         </div>
+        <p class="muted" style="margin:8px 0 0">Scheduling doesn't start the match — do that on match day below.${t.sport === 'cricket' ? ' The toss is asked when you press Start.' : ''}</p>
         `}
-        <div id="tMatchList-${t.id}" style="margin-top:10px"></div>
+      </div>
+    </div>
+
+    <!-- Step 4: Match day -->
+    <div class="step">
+      <div class="step-head">
+        <div class="num">4</div>
+        <div><h3>Match day — start &amp; control</h3>
+          <div class="hint">Press <strong>Start</strong> when the game begins${t.sport === 'cricket' ? ' (you’ll enter the toss)' : ''}, then open the control panel to score.</div></div>
+      </div>
+      <div class="step-body">
+        <div id="tMatchList-${t.id}"><p class="muted">No matches scheduled yet.</p></div>
       </div>
     </div>
 
     <!-- Standings preview -->
     <div class="step">
       <div class="step-head">
-        <div class="num">4</div>
-        <div><h3>Standings</h3>
+        <div class="num">5</div>
+        <div><h3>Leaderboard</h3>
           <div class="hint">Updates automatically as matches finish. <a href="${overlayUrl}" target="_blank" style="color:var(--accent)">Open full overlay</a>.</div></div>
       </div>
       <div class="step-body">
@@ -641,7 +808,6 @@ window.scheduleMatchInTournament = async (tId) => {
   if (!TEAMS.find((t) => t.id === home) || !TEAMS.find((t) => t.id === away)) {
     return toast('Both teams must be in this tournament');
   }
-  // 1) Create the match with date
   const tObj = TOURNAMENTS.find((x) => x.id === tId);
   const created = await api('/api/matches', { method: 'POST', body: JSON.stringify({
     sport: tObj.sport,
@@ -650,21 +816,55 @@ window.scheduleMatchInTournament = async (tId) => {
     away_team_id: away,
     scheduled_at: when ? new Date(when).toISOString() : null,
     options: tObj.sport === 'cricket'
-      ? { oversPerInnings: 20, playersPerSide: 11, tossWinner: 'home', tossDecision: 'bat' }
-      : { halfMinutes: 45 },
+      ? { oversPerInnings: +$(`#tOvers-${tId}`).value || 20, playersPerSide: +$(`#tPlayers-${tId}`).value || 11 }
+      : { halfMinutes: +$(`#tHalf-${tId}`).value || 45 },
   })});
-  // 2) Attach to tournament
   await api(`/api/tournaments/${tId}/matches`, { method: 'POST', body: JSON.stringify({
     match_id: created.id, round, group_name,
   })});
-  // 3) Fetch control token and open the control page in a new tab
-  const list = await api('/api/matches');
-  const m = list.find((x) => x.id === created.id);
-  if (m) window.open(`${location.origin}/control/${m.id}?token=${m.control_token}`, '_blank');
-  toast('Match scheduled');
+  toast('Match scheduled — start it from Match day when the game begins');
+  await refreshTournaments();
   refreshMatches();
+};
+
+window.createTeamInTournament = async (tId) => {
+  const name = $(`#ntName-${tId}`).value.trim();
+  const short = $(`#ntShort-${tId}`).value.trim();
+  if (!name || !short) return toast('Name and short code required');
+  const created = await api('/api/teams', { method: 'POST', body: JSON.stringify({
+    name, short_name: short, color: $(`#ntColor-${tId}`).value,
+  })});
+  await api(`/api/tournaments/${tId}/teams`, { method: 'POST', body: JSON.stringify({ team_ids: [created.id] }) });
+  toast(`"${name}" created and added`);
+  await refreshTeams();
   refreshTournaments();
 };
+
+// ---- per-tournament "match day" lists (joined client-side from MATCHES) ----
+function renderAllTournamentMatchLists() {
+  for (const t of TOURNAMENTS) {
+    const box = $(`#tMatchList-${t.id}`);
+    if (!box) continue;
+    const rows = (t.matches || [])
+      .map((tm) => {
+        const m = MATCHES.find((x) => x.id === tm.match_id);
+        return m ? { ...m, round: tm.round, group_name: tm.group_name } : null;
+      })
+      .filter(Boolean)
+      .sort((a, b) => (a.round - b.round) || ((a.scheduled_at || 0) - (b.scheduled_at || 0)));
+    box.innerHTML = rows.length
+      ? rows.map((m) => `<div class="match-item">
+          ${statusBadge(m)}
+          <div class="item-name">
+            <strong>${esc(m.home)} v ${esc(m.away)}</strong>
+            ${m.result ? `<span class="result-text">🏆 ${esc(m.result)}</span>` : ''}
+            <span class="muted">R${m.round}${m.group_name ? ' · Grp ' + esc(m.group_name) : ''}${fmtDate(m.scheduled_at) ? ' · 🗓 ' + esc(fmtDate(m.scheduled_at)) : ''}</span>
+          </div>
+          <div class="item-actions">${matchActions(m)}</div>
+        </div>`).join('')
+      : '<p class="muted">No matches scheduled yet.</p>';
+  }
+}
 
 // ---- standings auto-load ----
 async function refreshTournamentExtras() {
@@ -676,7 +876,9 @@ async function refreshTournamentExtras() {
       box.innerHTML = '<p class="muted">No standings yet — complete some matches.</p>';
       continue;
     }
-    const headers = ['#', 'Team', 'P', 'W', 'D', 'L', 'GF', 'GA', 'GD', 'Pts'];
+    const headers = t.sport === 'cricket'
+      ? ['#', 'Team', 'P', 'W', 'T', 'L', 'RF', 'RA', 'RD', 'Pts']
+      : ['#', 'Team', 'P', 'W', 'D', 'L', 'GF', 'GA', 'GD', 'Pts'];
     box.innerHTML = `<table class="standings">
       <thead><tr>${headers.map((h) => `<th>${h}</th>`).join('')}</tr></thead>
       <tbody>${rows.map((r, i) => `<tr>
@@ -694,7 +896,11 @@ setInterval(() => { if (!$('#tab-tournament').classList.contains('hidden') && TO
 
 // refresh standings right after refreshTournaments()
 const _refreshTournaments = refreshTournaments;
-refreshTournaments = async () => { await _refreshTournaments(); refreshTournamentExtras(); };
+refreshTournaments = async () => {
+  await _refreshTournaments();
+  refreshTournamentExtras();
+  renderAllTournamentMatchLists();
+};
 
 // ---- sponsors ----
 async function refreshSponsors() {

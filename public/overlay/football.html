@@ -29,6 +29,29 @@
   .period { font-size:10px; letter-spacing:1.5px; text-transform:uppercase; color:#86efac; }
   .stopbadge { position:absolute; top:-10px; right:-10px; background:#fbbf24; color:#451a03;
                font-weight:900; font-size:13px; padding:2px 7px; border-radius:20px; display:none; }
+  /* ---- full lower-third layout (?layout=full) ---- */
+  #fullbar {
+    position:absolute; left:50%; bottom:64px; transform:translateX(-50%);
+    display:none; align-items:stretch; height:66px; border-radius:12px; overflow:hidden;
+    box-shadow:0 6px 24px rgba(0,0,0,.5); font-variant-numeric:tabular-nums;
+  }
+  #fullbar.show { display:flex; }
+  #fullbar .teamblock { min-width:280px; }
+  #fullbar .teamblock:first-of-type { justify-content:flex-end; }
+  #fullbar .short { font-size:24px; letter-spacing:.5px; }
+  #fullbar .crest { width:40px; height:40px; }
+  #fullbar .scorebox { font-size:30px; }
+  #fullbar .timebox { min-width:96px; }
+  #fullbar .clock { font-size:23px; }
+
+  /* ---- light theme (?theme=light) ---- */
+  body.light .teamblock { background:linear-gradient(180deg,#ffffff,#e2e8f0); color:#0b1220; }
+  body.light .scorebox { background:#0b1220; color:#fff; }
+  body.light .timebox { background:linear-gradient(180deg,#dcfce7,#bbf7d0); color:#14532d; }
+  body.light .period { color:#166534; }
+  body.light #pens { background:rgba(255,255,255,.95); color:#0b1220; }
+  body.light #pens .lbl { color:#475569; }
+
   #goalbar {
     position:absolute; left:50%; bottom:110px; transform:translateX(-50%) translateY(30px);
     background:linear-gradient(90deg,#052e16,#15803d,#052e16); color:#fff; padding:14px 44px;
@@ -97,6 +120,21 @@
   <div class="stopbadge" id="stoppage"></div>
 </div>
 
+<div id="fullbar">
+  <div class="stripe" id="fHomeStripe"></div>
+  <div class="teamblock">
+    <img class="crest" id="fHomeCrest" style="display:none"><span class="short" id="fHomeName"></span>
+    <span class="reds" id="fHomeReds"></span>
+  </div>
+  <div class="scorebox"><span id="fHomeScore">0</span><span>–</span><span id="fAwayScore">0</span></div>
+  <div class="teamblock">
+    <span class="reds" id="fAwayReds"></span>
+    <span class="short" id="fAwayName"></span><img class="crest" id="fAwayCrest" style="display:none">
+  </div>
+  <div class="stripe" id="fAwayStripe"></div>
+  <div class="timebox"><span class="clock" id="fClock">00:00</span><span class="period" id="fPeriod"></span></div>
+</div>
+
 <div id="goalbar"></div>
 
 <div id="cardbar"></div>
@@ -112,6 +150,27 @@
 const matchId = location.pathname.split('/').pop();
 const $ = (s) => document.querySelector(s);
 let S = null, serverOffset = 0;
+
+// ---- URL options: ?layout=bug|full & ?pos=tl|tr|bl|br & ?scale=1.25 & ?theme=light ----
+const Q = new URLSearchParams(location.search);
+const layout = Q.get('layout') === 'full' ? 'full' : 'bug';
+const pos = ['tl', 'tr', 'bl', 'br'].includes(Q.get('pos')) ? Q.get('pos') : 'tl';
+const scale = Math.min(2, Math.max(0.5, parseFloat(Q.get('scale')) || 1));
+if (Q.get('theme') === 'light') document.body.classList.add('light');
+
+{ // place & scale the corner bug
+  const bug = $('#bug');
+  const v = pos[0] === 't' ? ['top', '40px'] : ['bottom', '40px'];
+  const h = pos[1] === 'l' ? ['left', '40px'] : ['right', '40px'];
+  bug.style.top = bug.style.left = 'auto';
+  bug.style[v[0]] = v[1];
+  bug.style[h[0]] = h[1];
+  bug.style.transform = `scale(${scale})`;
+  bug.style.transformOrigin = `${v[0]} ${h[0]}`;
+  const fb = $('#fullbar');
+  fb.style.transform = `translateX(-50%) scale(${scale})`;
+  fb.style.transformOrigin = 'bottom center';
+}
 const PERIOD_LABELS = { PRE:'',  '1H':'1st Half', HT:'Half Time', '2H':'2nd Half', FT:'Full Time',
                         ET1:'Extra Time', ETB:'ET Break', ET2:'Extra Time', AET:'AET', PENS:'Pens' };
 
@@ -120,7 +179,21 @@ socket.on('state', (msg) => { S = msg.state; serverOffset = msg.now - Date.now()
 
 function render() {
   const t = S.config.teams;
-  $('#bug').classList.add('show');
+  if (layout === 'full') {
+    $('#fullbar').classList.add('show');
+    $('#fHomeStripe').style.background = t.home.color;
+    $('#fAwayStripe').style.background = t.away.color;
+    $('#fHomeName').textContent = t.home.name;
+    $('#fAwayName').textContent = t.away.name;
+    setCrest('#fHomeCrest', t.home.crest); setCrest('#fAwayCrest', t.away.crest);
+    $('#fHomeScore').textContent = S.score.home;
+    $('#fAwayScore').textContent = S.score.away;
+    $('#fPeriod').textContent = PERIOD_LABELS[S.period] ?? S.period;
+    $('#fHomeReds').innerHTML = '<span class="redcard"></span>'.repeat(S.cards.home.r);
+    $('#fAwayReds').innerHTML = '<span class="redcard"></span>'.repeat(S.cards.away.r);
+  } else {
+    $('#bug').classList.add('show');
+  }
   $('#homeStripe').style.background = t.home.color;
   $('#awayStripe').style.background = t.away.color;
   $('#homeShort').textContent = t.home.short;
@@ -201,7 +274,9 @@ setInterval(() => {
   const now = Date.now() + serverOffset;
   const ms = S.clock.elapsedMs + (S.clock.running ? Math.max(0, now - S.clock.startedAt) : 0);
   const mm = Math.floor(ms / 60000), ss = Math.floor((ms % 60000) / 1000);
-  $('#clock').textContent = `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+  const txt = `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+  $('#clock').textContent = txt;
+  $('#fClock').textContent = txt;
 }, 200);
 </script>
 </body>

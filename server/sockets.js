@@ -1,6 +1,7 @@
 import { matches, events, sponsors } from './db.js';
 import * as football from './sports/football.js';
 import * as cricket from './sports/cricket.js';
+import { isCompletedState } from './tournament.js';
 
 const engines = { football, cricket };
 
@@ -27,9 +28,21 @@ function loadMatch(matchId) {
     controlToken: row.control_token,
     state: engine.replay(config, log),
     seq: log.length,
+    status: row.status,
   };
   live.set(matchId, entry);
   return entry;
+}
+
+// Keep matches.status in sync with the scored state:
+// first ball flips 'scheduled' → 'live'; a completed state flips to 'finished'
+// (and back to 'live' if the operator undoes past the end or extends the game).
+function syncStatus(matchId, entry) {
+  const want = isCompletedState(entry.sport, entry.state) ? 'finished' : 'live';
+  if (entry.status !== want) {
+    matches.setStatus(matchId, want);
+    entry.status = want;
+  }
 }
 
 function rebuild(matchId) {
@@ -77,6 +90,7 @@ export function setupSockets(io) {
         fresh.seq += 1;
         events.append(matchId, fresh.seq, event.type, event.payload, event.at);
         fresh.state = nextState;
+        syncStatus(matchId, fresh);
         io.to(`match:${matchId}`).emit('state', snapshot(fresh, true));
         ack?.({ ok: true });
       } catch (e) {
@@ -90,6 +104,7 @@ export function setupSockets(io) {
         const removed = events.deleteLast(matchId);
         if (removed === null) return ack?.({ ok: false, error: 'nothing to undo' });
         const fresh = rebuild(matchId);
+        syncStatus(matchId, fresh);
         io.to(`match:${matchId}`).emit('state', snapshot(fresh, true));
         ack?.({ ok: true });
       } catch (e) {
@@ -124,6 +139,7 @@ export function setupSockets(io) {
     });
 
     socket.on('sponsor:clear', (ack) => {
+      if (typeof ack !== 'function') ack = undefined; // tolerate stray payload args
       if (!isControl) return ack?.({ ok: false, error: 'control token required' });
       if (featured) {
         featured = null;

@@ -458,7 +458,7 @@ window.showSponsor = () => {
   });
 };
 window.clearSponsor = () => {
-  socket.emit('sponsor:clear', {}, (res) => {
+  socket.emit('sponsor:clear', (res) => {
     if (res && !res.ok) { toast(res.error); return; }
     $('#spStatus').textContent = 'Sponsor cleared — rotation resumed';
   });

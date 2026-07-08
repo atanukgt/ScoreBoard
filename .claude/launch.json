@@ -5,7 +5,8 @@
       "name": "scoreboard",
       "runtimeExecutable": "node",
       "runtimeArgs": ["server/index.js"],
-      "port": 3100
+      "port": 3100,
+      "autoPort": true
     }
   ]
 }

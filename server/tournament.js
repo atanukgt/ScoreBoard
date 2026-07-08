@@ -31,13 +31,17 @@ export function replayMatch(matchRow) {
   return engine.replay(config, matchRow._events || []);
 }
 
+/** Completion check on an already-computed state (shared with the socket layer). */
+export function isCompletedState(sport, state) {
+  if (!state) return false;
+  if (sport === 'football') return COMPLETED_FOOTBALL.has(state.period);
+  if (sport === 'cricket') return state.phase === 'finished';
+  return false;
+}
+
 export function isMatchCompleted(matchRow) {
   if (!matchRow) return false;
-  const state = replayMatch(matchRow);
-  if (!state) return false;
-  if (matchRow.sport === 'football') return COMPLETED_FOOTBALL.has(state.period);
-  if (matchRow.sport === 'cricket') return state.phase === 'finished';
-  return false;
+  return isCompletedState(matchRow.sport, replayMatch(matchRow));
 }
 
 /**

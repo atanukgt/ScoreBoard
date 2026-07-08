@@ -59,6 +59,18 @@
   #full .line .nm .star { color:#38bdf8; }
   #full .lbl { font-size:11px; color:#64748b; text-transform:uppercase; letter-spacing:1.5px; }
 
+  /* ---- light theme (?theme=light) ---- */
+  body.light #bug .main, body.light #full .teamcell { background:linear-gradient(180deg,#ffffff,#e2e8f0); color:#0b1220; }
+  body.light #bug .overs { color:#475569; }
+  body.light #bug .chase, body.light #full .chasecell { background:linear-gradient(180deg,#dcfce7,#bbf7d0); color:#14532d; }
+  body.light #full .bigscore { background:#0b1220; color:#fff; }
+  body.light #full .bigscore .ov { color:#94a3b8; }
+  body.light #full .mid { background:linear-gradient(180deg,#f1f5f9,#e2e8f0); }
+  body.light #full .ball { background:#cbd5e1; color:#0b1220; }
+  body.light #full .sub { background:rgba(255,255,255,.95); color:#0b1220; }
+  body.light #full .bowlcol { border-left-color:#cbd5e1; }
+  body.light #banner { background:rgba(255,255,255,.96); color:#0b1220; }
+
   /* ---- flash banner (FOUR/SIX/WICKET) ---- */
   #flash { position:absolute; left:50%; top:38%; transform:translate(-50%,-50%) scale(.6);
            font-size:84px; font-weight:900; letter-spacing:4px; color:#fff; opacity:0; white-space:nowrap;
@@ -114,7 +126,25 @@
 <script src="/socket.io/socket.io.js"></script>
 <script>
 const matchId = location.pathname.split('/').pop();
-const layout = new URLSearchParams(location.search).get('layout') === 'bug' ? 'bug' : 'full';
+// ---- URL options: ?layout=bug|full & ?pos=tl|tr|bl|br (bug) & ?scale=1.25 & ?theme=light ----
+const Q = new URLSearchParams(location.search);
+const layout = Q.get('layout') === 'bug' ? 'bug' : 'full';
+const pos = ['tl', 'tr', 'bl', 'br'].includes(Q.get('pos')) ? Q.get('pos') : 'tl';
+const scale = Math.min(2, Math.max(0.5, parseFloat(Q.get('scale')) || 1));
+if (Q.get('theme') === 'light') document.body.classList.add('light');
+{
+  const bug = document.querySelector('#bug');
+  const v = pos[0] === 't' ? ['top', '40px'] : ['bottom', '40px'];
+  const h = pos[1] === 'l' ? ['left', '40px'] : ['right', '40px'];
+  bug.style.top = bug.style.left = 'auto';
+  bug.style[v[0]] = v[1];
+  bug.style[h[0]] = h[1];
+  bug.style.transform = `scale(${scale})`;
+  bug.style.transformOrigin = `${v[0]} ${h[0]}`;
+  const full = document.querySelector('#full');
+  full.style.transform = `translateX(-50%) scale(${scale})`;
+  full.style.transformOrigin = 'bottom center';
+}
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let S = null, serverOffset = 0;
