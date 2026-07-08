@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tournaments — Scoreboard Live</title>
+  <style>
+    :root {
+      --bg: #0f172a; --panel: #1e293b; --panel2: #273449; --line: #334155;
+      --text: #e2e8f0; --muted: #94a3b8; --accent: #38bdf8; --green: #34d399; --red: #f87171; --amber: #fbbf24;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+           background: var(--bg); color: var(--text); }
+    header { display: flex; align-items: center; gap: 12px; padding: 14px 20px;
+             background: var(--panel); border-bottom: 1px solid var(--line); }
+    header h1 { font-size: 18px; margin: 0; letter-spacing: .5px; }
+    header .spacer { flex: 1; }
+    a.btn-back, a.btn-primary {
+      text-decoration: none; padding: 8px 14px; border-radius: 8px;
+      font-weight: 600; font-size: 14px; display: inline-flex; align-items: center; gap: 6px;
+    }
+    a.btn-back { color: var(--muted); background: var(--panel2); border: 1px solid var(--line); }
+    a.btn-primary { color: #082f49; background: var(--accent); }
+    a.btn-back:hover { color: var(--text); }
+    main { max-width: 1000px; margin: 0 auto; padding: 24px 20px 60px; }
+    h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 1px;
+         color: var(--muted); margin: 28px 0 14px; }
+
+    /* Hero create card */
+    .create-card {
+      background: linear-gradient(180deg, var(--panel), #162033);
+      border: 1px solid var(--accent); border-radius: 14px; padding: 22px 22px 18px;
+      margin-bottom: 24px; box-shadow: 0 6px 24px rgba(56,189,248,.08);
+    }
+    .create-card h2 { font-size: 19px; color: var(--text); margin: 0 0 4px;
+                      text-transform: none; letter-spacing: 0; }
+    .create-card .hint { color: var(--muted); font-size: 13px; margin-bottom: 18px; }
+    .create-card label { display: block; font-size: 12px; color: var(--muted);
+                        margin: 0 0 4px; font-weight: 600; }
+    .create-card input, .create-card select {
+      width: 100%; font: inherit; color: var(--text); background: var(--panel2);
+      border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px;
+    }
+    .create-card input:focus, .create-card select:focus { outline: 2px solid var(--accent); border-color: transparent; }
+    .create-card .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
+    .create-card .row > div { flex: 1 1 160px; min-width: 0; }
+    .create-card .row .grow { flex: 2 1 240px; }
+    .create-card .row .submit-cell { flex: 0 0 auto; min-width: 180px; }
+    .create-card button.primary {
+      width: 100%; background: var(--accent); color: #082f49;
+      font-weight: 700; border: none; border-radius: 8px; padding: 11px 16px;
+      font-size: 15px; cursor: pointer;
+    }
+    .create-card button.primary:hover { filter: brightness(1.05); }
+    .create-card button.primary:disabled { opacity: .5; cursor: not-allowed; }
+
+    /* Tournament card grid */
+    .tn-grid { display: grid; gap: 14px;
+               grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+    .tn-card {
+      background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+      padding: 18px; cursor: pointer; transition: border-color .2s, transform .1s;
+      display: flex; flex-direction: column; gap: 8px; min-height: 168px;
+    }
+    .tn-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+    .tn-card .name { font-size: 17px; font-weight: 700; line-height: 1.2; word-break: break-word; }
+    .tn-card .badges { display: flex; gap: 6px; flex-wrap: wrap; }
+    .tn-card .stats { color: var(--muted); font-size: 13px; display: flex; gap: 14px; flex-wrap: wrap; }
+    .tn-card .stats b { color: var(--text); font-weight: 700; }
+    .tn-card .open { margin-top: auto; display: flex; justify-content: flex-end; }
+    .tn-card .open span { color: var(--accent); font-weight: 600; font-size: 13px; }
+
+    /* Small reusable bits */
+    .badge { font-size: 10px; padding: 3px 9px; border-radius: 999px;
+             background: var(--panel2); color: var(--muted); text-transform: uppercase;
+             letter-spacing: 1px; font-weight: 600; }
+    .badge.football { color: var(--green); }
+    .badge.cricket  { color: var(--amber); }
+    .badge.league   { color: var(--accent); }
+    .badge.single   { color: var(--muted); }
+    .badge.live     { color: #fff; background: var(--red); }
+    .badge.scheduled { color: var(--muted); }
+    .badge.finished { color: var(--green); }
+    .badge.active   { color: var(--accent); }
+    .badge.completed { color: var(--muted); }
+
+    /* Empty + loading states */
+    .empty-state {
+      text-align: center; padding: 40px 20px;
+      border: 2px dashed var(--line); border-radius: 12px;
+      color: var(--muted);
+    }
+    .empty-state .big { font-size: 42px; margin-bottom: 10px; }
+
+    /* Toast */
+    #toast {
+      position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
+      background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+      padding: 10px 16px; font-size: 14px; opacity: 0; transition: opacity .25s;
+      pointer-events: none; z-index: 100;
+    }
+    #toast.show { opacity: 1; }
+    #toast.error { border-color: var(--red); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🏆 Tournaments</h1>
+    <span class="spacer"></span>
+    <a href="/admin/" class="btn-back">← Admin home</a>
+  </header>
+
+  <main>
+    <!-- Create new -->
+    <div class="create-card">
+      <h2>Start a new tournament</h2>
+      <div class="hint">
+        Pick <b>one-day</b> for a single match, or <b>league</b> for a multi-match leaderboard.
+        You can add teams, schedule matches and run match day from the tournament page.
+      </div>
+      <div class="row">
+        <div class="grow">
+          <label for="tnName">Tournament name</label>
+          <input id="tnName" placeholder="Kumarghat League" maxlength="80">
+        </div>
+        <div>
+          <label for="tnSport">Sport</label>
+          <select id="tnSport">
+            <option value="football">⚽ Football</option>
+            <option value="cricket">🏏 Cricket</option>
+          </select>
+        </div>
+        <div>
+          <label for="tnFormat">Format</label>
+          <select id="tnFormat">
+            <option value="single">One-day (single match)</option>
+            <option value="league" selected>League + leaderboard</option>
+          </select>
+        </div>
+        <div class="submit-cell">
+          <label>&nbsp;</label>
+          <button class="primary" id="addTournament" type="button">Create tournament</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Existing -->
+    <h2>Your tournaments</h2>
+    <div id="tournamentList">
+      <div class="empty-state"><div class="big">⏳</div>Loading…</div>
+    </div>
+  </main>
+
+  <div id="toast"></div>
+
+  <script type="module">
+    const $ = (s, r = document) => r.querySelector(s);
+    const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    function toast(msg, kind = '') {
+      const t = $('#toast'); if (!t) return;
+      t.textContent = msg; t.className = 'show' + (kind ? ' ' + kind : '');
+      clearTimeout(toast._t); toast._t = setTimeout(() => t.className = '', 2400);
+    }
+
+    async function api(url, opts = {}) {
+      const r = await fetch(url, {
+        method: opts.method || 'GET',
+        headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
+        body: opts.body ? (typeof opts.body === 'string' ? opts.body : JSON.stringify(opts.body)) : undefined,
+        credentials: 'same-origin',
+      });
+      if (!r.ok) {
+        let body;
+        try { body = await r.json(); } catch { body = { error: r.statusText }; }
+        const e = new Error(body.error || ('http ' + r.status));
+        e.status = r.status; e.body = body;
+        throw e;
+      }
+      if (r.status === 204) return null;
+      return r.json();
+    }
+
+    // ---- auth gate ----
+    const me = await (async () => {
+      try { return await api('/api/me'); } catch { return { admin: false }; }
+    })();
+    if (!me.admin) { location.href = '/admin/?back=tournaments'; }
+
+    // ---- load + render ----
+    let TOURNAMENTS = [];
+    async function refresh() {
+      try {
+        TOURNAMENTS = await api('/api/tournaments');
+        renderList();
+      } catch (e) {
+        $('#tournamentList').innerHTML =
+          `<div class="empty-state"><div class="big">⚠️</div>Failed to load: ${esc(e.message)}</div>`;
+      }
+    }
+    function fmtBadge(t) {
+      return `<span class="badge ${t.sport}">${t.sport}</span>` +
+             `<span class="badge ${t.format === 'single' ? 'single' : 'league'}">${t.format === 'single' ? 'one-day' : 'league'}</span>` +
+             `<span class="badge ${t.status}">${t.status}</span>`;
+    }
+    function renderList() {
+      const target = $('#tournamentList');
+      if (!TOURNAMENTS.length) {
+        target.innerHTML = `<div class="empty-state">
+          <div class="big">🏆</div>
+          <div>No tournaments yet — fill in the form above and hit <b>Create tournament</b> to get started.</div>
+        </div>`;
+        return;
+      }
+      target.innerHTML = `<div class="tn-grid">${
+        TOURNAMENTS.map((t) => `
+          <a class="tn-card" href="/admin/tournament.html?id=${encodeURIComponent(t.id)}" data-id="${t.id}">
+            <div class="name">${esc(t.name)}</div>
+            <div class="badges">${fmtBadge(t)}</div>
+            <div class="stats">
+              <span><b>${t.team_count}</b> team${t.team_count === 1 ? '' : 's'}</span>
+              <span><b>${t.match_count}</b> match${t.match_count === 1 ? '' : 'es'}</span>
+            </div>
+            <div class="open"><span>Open →</span></div>
+          </a>
+        `).join('')
+      }</div>`;
+    }
+
+    // ---- create ----
+    async function createTournament() {
+      const name = $('#tnName').value.trim();
+      const sport = $('#tnFormat').value;  // unused, kept for symmetry
+      const sport_val = $('#tnSport').value;
+      const format = $('#tnFormat').value;
+      if (!name) { toast('Give the tournament a name first'); $('#tnName').focus(); return; }
+      const btn = $('#addTournament');
+      btn.disabled = true; btn.textContent = 'Creating…';
+      try {
+        const out = await api('/api/tournaments', {
+          method: 'POST',
+          body: { name, sport: sport_val, format },
+        });
+        $('#tnName').value = '';
+        toast(format === 'single' ? 'One-day tournament created' : 'Tournament created');
+        await refresh();
+        // Hop straight into the new tournament's detail page.
+        location.href = `/admin/tournament.html?id=${encodeURIComponent(out.id)}`;
+      } catch (e) {
+        toast(e.message || 'Could not create tournament', 'error');
+      } finally {
+        btn.disabled = false; btn.textContent = 'Create tournament';
+      }
+    }
+    $('#addTournament').addEventListener('click', createTournament);
+    $('#tnName').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); createTournament(); }
+    });
+
+    refresh();
+  </script>
+</body>
+</html>

@@ -1,0 +1,921 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tournament — Scoreboard Live</title>
+  <style>
+    :root {
+      --bg: #0f172a; --panel: #1e293b; --panel2: #273449; --line: #334155;
+      --text: #e2e8f0; --muted: #94a3b8; --accent: #38bdf8; --green: #34d399; --red: #f87171; --amber: #fbbf24;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+           background: var(--bg); color: var(--text); }
+    header { display: flex; align-items: center; gap: 12px; padding: 14px 20px;
+             background: var(--panel); border-bottom: 1px solid var(--line);
+             flex-wrap: wrap; }
+    header h1 { font-size: 16px; margin: 0; }
+    header .spacer { flex: 1; }
+    a.btn-back, button.ghost-link, button.danger-link {
+      text-decoration: none; padding: 7px 12px; border-radius: 8px; cursor: pointer;
+      font-weight: 600; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;
+      font-family: inherit; line-height: 1;
+    }
+    a.btn-back { color: var(--muted); background: var(--panel2); border: 1px solid var(--line); }
+    a.btn-back:hover { color: var(--text); }
+    button.ghost-link { color: var(--text); background: transparent; border: 1px solid var(--line); }
+    button.ghost-link:hover { border-color: var(--accent); }
+    button.danger-link { color: var(--red); background: transparent; border: 1px solid var(--red); }
+    button.ghost-link:disabled, button.danger-link:disabled { opacity: .4; cursor: not-allowed; }
+
+    main { max-width: 1100px; margin: 0 auto; padding: 20px 20px 80px; }
+
+    /* Banner */
+    .banner {
+      background: linear-gradient(180deg, var(--panel), #162033);
+      border: 1px solid var(--line); border-radius: 14px;
+      padding: 22px 24px; margin-bottom: 18px;
+    }
+    .banner .name { font-size: 26px; font-weight: 800; letter-spacing: -.5px;
+                    word-break: break-word; }
+    .banner .meta { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    .banner .summary { color: var(--muted); font-size: 13px; margin-top: 12px; line-height: 1.5; }
+
+    /* Stepper */
+    .stepper {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+      margin-bottom: 20px;
+    }
+    @media (max-width: 720px) { .stepper { grid-template-columns: repeat(2, 1fr); } }
+    .stepper button {
+      cursor: pointer; text-align: left; padding: 14px 16px;
+      background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+      color: var(--text); font: inherit; display: flex; gap: 12px; align-items: center;
+      transition: border-color .2s;
+    }
+    .stepper button:hover { border-color: var(--accent); }
+    .stepper button.complete { border-color: var(--green); }
+    .stepper button.current { border-color: var(--accent); background: #182237; }
+    .stepper .badge-num {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 34px; height: 34px; border-radius: 50%; background: var(--panel2);
+      font-weight: 800; font-size: 15px; color: var(--muted); flex: none;
+    }
+    .stepper button.complete .badge-num { background: var(--green); color: #052e1c; }
+    .stepper button.current .badge-num { background: var(--accent); color: #082f49; }
+    .stepper .step-title { font-weight: 700; font-size: 14px; }
+    .stepper .step-meta { color: var(--muted); font-size: 12px; margin-top: 2px; line-height: 1.3; }
+
+    /* Step panels */
+    .step-panel {
+      background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+      padding: 0; margin-bottom: 14px; overflow: hidden;
+    }
+    .step-panel .step-head {
+      display: flex; align-items: center; gap: 12px; padding: 16px 22px;
+      border-bottom: 1px solid var(--line); background: var(--panel2);
+    }
+    .step-panel .step-head .num {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 30px; height: 30px; border-radius: 50%;
+      background: var(--panel); border: 1px solid var(--line);
+      font-weight: 800; font-size: 14px; color: var(--muted); flex: none;
+    }
+    .step-panel.complete .step-head .num { background: var(--green); color: #052e1c; border-color: var(--green); }
+    .step-panel.current .step-head .num { background: var(--accent); color: #082f49; border-color: var(--accent); }
+    .step-panel .step-head h2 {
+      margin: 0; font-size: 16px; text-transform: none; letter-spacing: 0; color: var(--text);
+    }
+    .step-panel .step-head .hint {
+      color: var(--muted); font-size: 12px; margin-top: 2px; line-height: 1.4;
+    }
+    .step-panel .step-body { padding: 18px 22px 22px; }
+    .step-panel.done-banner {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 14px; margin: 14px 22px 0;
+      background: rgba(52,211,153,.08); border: 1px solid var(--green);
+      border-radius: 8px; color: var(--green); font-size: 13px; font-weight: 600;
+    }
+
+    /* Form bits */
+    label { display: block; font-size: 12px; color: var(--muted); margin: 0 0 4px; font-weight: 600; }
+    input, select, textarea {
+      font: inherit; color: var(--text); background: var(--panel2);
+      border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px;
+      width: 100%;
+    }
+    input[type=date], input[type=datetime-local], input[type=number], input[type=color] { color-scheme: dark; }
+    input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); border-color: transparent; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
+    .row > div { flex: 1 1 140px; min-width: 0; }
+    .row .grow { flex: 2 1 220px; }
+
+    button.primary {
+      background: var(--accent); color: #082f49; font-weight: 700; border: none;
+      border-radius: 8px; padding: 10px 16px; font-size: 14px; cursor: pointer; font-family: inherit;
+      width: 100%;
+    }
+    button.primary:hover:not(:disabled) { filter: brightness(1.06); }
+    button.primary:disabled { opacity: .45; cursor: not-allowed; }
+    button.success {
+      background: var(--green); color: #052e1c; font-weight: 700; border: none;
+      border-radius: 8px; padding: 10px 16px; font-size: 14px; cursor: pointer; font-family: inherit;
+    }
+    button.success:disabled { opacity: .45; cursor: not-allowed; }
+    button.ghost {
+      background: transparent; color: var(--text); border: 1px solid var(--line);
+      border-radius: 8px; padding: 9px 14px; font-size: 13px; cursor: pointer; font-family: inherit;
+    }
+    button.ghost:hover { border-color: var(--accent); }
+    button.danger {
+      background: transparent; color: var(--red); border: 1px solid var(--red);
+      border-radius: 8px; padding: 9px 14px; font-size: 13px; cursor: pointer; font-family: inherit;
+    }
+    button.danger:hover { background: rgba(248,113,113,.1); }
+
+    /* Chips (teams) */
+    .chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; min-height: 36px; }
+    .chip {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 5px 10px 5px 8px; border-radius: 999px;
+      background: var(--panel2); border: 1px solid var(--line);
+      font-weight: 600; font-size: 13px;
+    }
+    .chip .dot { width: 10px; height: 10px; border-radius: 50%; flex: none;
+                 border: 1px solid rgba(255,255,255,.3); }
+    .chip .x { cursor: pointer; color: var(--muted); font-size: 16px; line-height: 1; padding: 0 4px; border-radius: 50%; }
+    .chip .x:hover { color: var(--red); background: rgba(248,113,113,.12); }
+
+    /* Picker grid */
+    .picker {
+      border: 1px solid var(--line); border-radius: 10px; padding: 10px;
+      background: rgba(0,0,0,.18); max-height: 280px; overflow: auto;
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px;
+    }
+    .picker label {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 10px; border-radius: 6px; cursor: pointer;
+      transition: background .15s; margin: 0;
+    }
+    .picker label:hover { background: rgba(255,255,255,.04); }
+    .picker label.checked { background: rgba(56,189,248,.15); border: 1px solid var(--accent); margin: -1px; }
+    .picker input[type=checkbox] { width: auto; flex: none; }
+
+    .empty-text { color: var(--muted); font-size: 13px; padding: 12px 0; }
+
+    /* Match list (step 3, also step 2's "scheduled" list) */
+    .mt-list { display: flex; flex-direction: column; gap: 10px; }
+    .mt-item {
+      background: var(--panel2); border: 1px solid var(--line); border-radius: 10px;
+      padding: 14px 16px; display: flex; gap: 14px; align-items: center; flex-wrap: wrap;
+    }
+    .mt-item .vs { font-weight: 800; font-size: 15px; flex: 1 1 200px; min-width: 0; display: flex; align-items: center; gap: 10px; }
+    .mt-item .vs b { font-weight: 800; }
+    .mt-item .vs .pill { background: var(--panel); padding: 2px 8px; border-radius: 6px; font-size: 11px; color: var(--muted); font-weight: 600; }
+    .mt-item .meta { color: var(--muted); font-size: 12px; }
+    .mt-item .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+    .mt-item .actions a, .mt-item .actions button {
+      font-size: 12px; padding: 6px 10px; border-radius: 6px;
+      border: 1px solid var(--line); background: var(--panel);
+      color: var(--text); text-decoration: none; font-family: inherit;
+    }
+    .mt-item .actions a { color: var(--accent); }
+    .mt-item .actions button.danger { color: var(--red); border-color: var(--red); background: transparent; }
+
+    /* Leaderboard */
+    .lb-table { width: 100%; border-collapse: collapse; }
+    .lb-table th, .lb-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--line); }
+    .lb-table th { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); font-weight: 700; }
+    .lb-table td.num, .lb-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .lb-table td.pos { font-weight: 800; color: var(--accent); width: 40px; }
+    .lb-table td.team { font-weight: 700; }
+    .lb-table tr.you td { background: rgba(56,189,248,.05); }
+
+    /* Generic helpers */
+    .muted { color: var(--muted); font-size: 13px; }
+    .ok-text { color: var(--green); font-weight: 700; }
+    .bad-text { color: var(--red); font-weight: 700; }
+    .sep { color: var(--line); margin: 0 6px; }
+
+    /* Toast */
+    #toast {
+      position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
+      background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+      padding: 10px 16px; font-size: 14px; opacity: 0; transition: opacity .25s;
+      pointer-events: none; z-index: 100;
+    }
+    #toast.show { opacity: 1; }
+    #toast.error { border-color: var(--red); }
+
+    /* Settings dropdown */
+    .settings-pop {
+      position: absolute; right: 20px; top: 60px; z-index: 50;
+      background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+      padding: 8px; min-width: 220px; box-shadow: 0 12px 40px rgba(0,0,0,.4);
+    }
+    .settings-pop button { width: 100%; text-align: left; padding: 10px 12px; }
+    .settings-pop .info {
+      padding: 10px 12px; border-bottom: 1px solid var(--line); margin-bottom: 6px;
+      font-size: 12px; color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="/admin/tournaments.html" class="btn-back" id="backLink">← All tournaments</a>
+    <h1 id="headerTitle">🏆 Tournament</h1>
+    <span class="spacer"></span>
+    <button class="ghost-link" id="settingsBtn" type="button">⋯ Settings</button>
+  </header>
+
+  <main>
+    <!-- Banner -->
+    <section class="banner" id="banner">
+      <div class="name" id="tnName">Loading…</div>
+      <div class="meta" id="tnMeta"></div>
+      <div class="summary" id="tnSummary"></div>
+    </section>
+
+    <!-- Stepper -->
+    <nav class="stepper" id="stepper">
+      <button data-step="teams" type="button">
+        <div class="badge-num">1</div>
+        <div>
+          <div class="step-title">Teams</div>
+          <div class="step-meta" id="metaTeams">loading…</div>
+        </div>
+      </button>
+      <button data-step="schedule" type="button">
+        <div class="badge-num">2</div>
+        <div>
+          <div class="step-title">Schedule</div>
+          <div class="step-meta" id="metaSchedule">loading…</div>
+        </div>
+      </button>
+      <button data-step="day" type="button">
+        <div class="badge-num">3</div>
+        <div>
+          <div class="step-title">Match day</div>
+          <div class="step-meta" id="metaDay">loading…</div>
+        </div>
+      </button>
+      <button data-step="leaderboard" type="button">
+        <div class="badge-num">4</div>
+        <div>
+          <div class="step-title">Leaderboard</div>
+          <div class="step-meta" id="metaLeaderboard">loading…</div>
+        </div>
+      </button>
+    </nav>
+
+    <!-- STEP 1: TEAMS -->
+    <section id="sec-teams" class="step-panel">
+      <div class="step-head">
+        <div class="num">1</div>
+        <div>
+          <h2>Teams in this tournament</h2>
+          <div class="hint">Tick the teams you want to add. Tap <b>×</b> on a chip to remove. You need at least <b>2 teams</b> before you can schedule matches.</div>
+        </div>
+      </div>
+      <div class="step-body">
+        <div id="chips" class="chip-row"></div>
+        <div id="pickerSection"></div>
+        <details style="margin-top:14px">
+          <summary style="color:var(--muted); cursor:pointer; padding:8px 0">
+            + Create a new team here
+          </summary>
+          <div class="row" style="margin-top:8px">
+            <div class="grow">
+              <label>Team name</label>
+              <input id="ntName" placeholder="Lions CC" maxlength="60">
+            </div>
+            <div>
+              <label>Short (3-4)</label>
+              <input id="ntShort" maxlength="4" placeholder="LIO" style="width:90px">
+            </div>
+            <div>
+              <label>Colour</label>
+              <input type="color" id="ntColor" value="#1d4ed8" style="height:38px;width:60px;padding:2px">
+            </div>
+            <div>
+              <label>&nbsp;</label>
+              <button class="primary" id="createTeamBtn" type="button" style="width:auto">Create &amp; add</button>
+            </div>
+          </div>
+          <div class="muted" style="margin-top:6px">You can add a crest and edit players later from the Teams tab.</div>
+        </details>
+      </div>
+    </section>
+
+    <!-- STEP 2: SCHEDULE -->
+    <section id="sec-schedule" class="step-panel">
+      <div class="step-head">
+        <div class="num">2</div>
+        <div>
+          <h2>Schedule matches</h2>
+          <div class="hint">Pick two teams from the ones you added above. Set a date/time or leave blank for "any time". Scheduling doesn't start the match — that's Step 3.</div>
+        </div>
+      </div>
+      <div class="step-body" id="scheduleBody"></div>
+    </section>
+
+    <!-- STEP 3: MATCH DAY -->
+    <section id="sec-day" class="step-panel">
+      <div class="step-head">
+        <div class="num">3</div>
+        <div>
+          <h2>Match day</h2>
+          <div class="hint">Press <b>Start</b> when the game begins<span id="tossNote"></span>, then open the control panel on a phone or tablet to score. The OBS overlay URL also appears here once the match is live.</div>
+        </div>
+      </div>
+      <div class="step-body" id="dayBody"></div>
+    </section>
+
+    <!-- STEP 4: LEADERBOARD -->
+    <section id="sec-leaderboard" class="step-panel">
+      <div class="step-head">
+        <div class="num">4</div>
+        <div>
+          <h2>Leaderboard</h2>
+          <div class="hint">Updates automatically as matches finish. <a id="fullOverlayLink" target="_blank" style="color:var(--accent)">Open the full overlay</a> in OBS for a live broadcast view.</div>
+        </div>
+      </div>
+      <div class="step-body" id="leaderboardBody">
+        <div class="muted">Loading…</div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast"></div>
+
+  <script type="module">
+    // ---- helpers ----
+    const $ = (s, r = document) => r.querySelector(s);
+    const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    function toast(msg, kind = '') {
+      const t = $('#toast'); if (!t) return;
+      t.textContent = msg; t.className = 'show' + (kind ? ' ' + kind : '');
+      clearTimeout(toast._t); toast._t = setTimeout(() => t.className = '', 2400);
+    }
+    async function api(url, opts = {}) {
+      const r = await fetch(url, {
+        method: opts.method || 'GET',
+        headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
+        body: opts.body ? (typeof opts.body === 'string' ? opts.body : JSON.stringify(opts.body)) : undefined,
+        credentials: 'same-origin',
+      });
+      if (!r.ok) {
+        let body;
+        try { body = await r.json(); } catch { body = { error: r.statusText }; }
+        const e = new Error(body.error || ('http ' + r.status));
+        e.status = r.status; e.body = body; throw e;
+      }
+      if (r.status === 204) return null;
+      return r.json();
+    }
+    const meta = (text) => (el) => el && (el.textContent = text);
+
+    // ---- auth ----
+    const me = await (async () => {
+      try { return await api('/api/me'); } catch { return { admin: false }; }
+    })();
+    if (!me.admin) {
+      const next = encodeURIComponent(location.pathname + location.search);
+      location.href = `/admin/?back=${next}`;
+    }
+
+    // ---- read tournament id from URL ----
+    const params = new URLSearchParams(location.search);
+    const TID = Number(params.get('id'));   // numeric — API returns numeric IDs
+    if (!TID || !Number.isInteger(TID)) {
+    if (!TID) {
+      document.querySelector('main').innerHTML =
+        `<div class="empty-state" style="padding:60px 20px; text-align:center; border:2px dashed var(--line); border-radius:14px; color:var(--muted);">
+           <div style="font-size:48px; margin-bottom:14px">🏆</div>
+           <div style="font-size:15px; margin-bottom:18px">Pick a tournament first.</div>
+           <a href="/admin/tournaments.html" class="btn-back" style="display:inline-block; text-decoration:none; padding:10px 16px; border-radius:8px; background:var(--accent); color:#082f49; font-weight:700">All tournaments</a>
+         </div>`;
+      document.title = 'No tournament selected — Scoreboard Live';
+      throw new Error('no id');   // bail
+    }
+
+    let TOURNAMENT = null;
+    let ALL_TEAMS = [];
+    let ALL_MATCHES = [];
+
+    async function loadAll() {
+      const t = await api(`/api/tournaments`);
+      TOURNAMENT = t.find((x) => x.id === TID) || null;
+      if (!TOURNAMENT) {
+        document.querySelector('main').innerHTML =
+          `<div class="empty-state" style="padding:60px 20px; text-align:center; border:2px dashed var(--line); border-radius:14px; color:var(--muted);">
+             <div style="font-size:48px; margin-bottom:14px">404</div>
+             <div style="font-size:15px; margin-bottom:18px">That tournament doesn't exist (or was deleted).</div>
+             <a href="/admin/tournaments.html" class="btn-back" style="display:inline-block; text-decoration:none; padding:10px 16px; border-radius:8px; background:var(--accent); color:#082f49; font-weight:700">All tournaments</a>
+           </div>`;
+        document.title = 'Not found — Scoreboard Live';
+        throw new Error('not found');
+      }
+      [ALL_TEAMS, ALL_MATCHES] = await Promise.all([api('/api/teams'), api('/api/matches')]);
+    }
+
+    function teamById(id) { return ALL_TEAMS.find((t) => t.id === id); }
+    function matchesForThisTournament() {
+      const ids = new Set((TOURNAMENT.matches || []).map((m) => m.match_id));
+      return ALL_MATCHES.filter((m) => ids.has(m.id));
+    }
+
+    // ---- BANNER ----
+    function renderBanner() {
+      const t = TOURNAMENT;
+      $('#headerTitle').textContent = `🏆 ${t.name}`;
+      $('#tnName').textContent = t.name;
+      $('#tnMeta').innerHTML =
+        `<span class="badge ${t.sport}">${t.sport === 'cricket' ? '🏏 cricket' : '⚽ football'}</span>` +
+        `<span class="badge ${t.format === 'single' ? 'single' : 'league'}">${t.format === 'single' ? 'one-day' : 'league'}</span>` +
+        `<span class="badge ${t.status}">${t.status}</span>`;
+      $('#tnSummary').textContent =
+        `${t.team_count} team${t.team_count === 1 ? '' : 's'} · ${t.match_count} match${t.match_count === 1 ? '' : 'es'} ` +
+        `· started ${new Date(t.created_at).toLocaleString()}`;
+    }
+
+    // ---- STEPPER meta ----
+    function refreshStepper() {
+      const t = TOURNAMENT;
+      const tnMatches = matchesForThisTournament();
+      const liveCount = tnMatches.filter((m) => m.status === 'live').length;
+      const schedCount = tnMatches.filter((m) => m.status === 'scheduled').length;
+      const finCount = tnMatches.filter((m) => m.status === 'finished').length;
+      const teamsOk = t.team_count >= 2;
+
+      meta(t.team_count === 0
+        ? 'No teams yet'
+        : teamsOk
+          ? `${t.team_count} team${t.team_count === 1 ? '' : 's'} · ready`
+          : `${t.team_count} team · need 1 more`)(document.getElementById('metaTeams'));
+      meta(tnMatches.length === 0
+        ? 'No matches yet'
+        : `${tnMatches.length} scheduled`)(document.getElementById('metaSchedule'));
+      meta(`${liveCount} live · ${schedCount} scheduled · ${finCount} finished`)(document.getElementById('metaDay'));
+      meta(tnMatches.length === 0
+        ? 'Updates as matches finish'
+        : `${finCount} finished`)(document.getElementById('metaLeaderboard'));
+
+      // Step states (green border for "complete")
+      const stepTeams = document.querySelector('[data-step=teams]');
+      const stepSched = document.querySelector('[data-step=schedule]');
+      const stepDay   = document.querySelector('[data-step=day]');
+      stepTeams.classList.toggle('complete', teamsOk);
+      stepSched.classList.toggle('complete', tnMatches.length > 0);
+      stepDay.classList.toggle('complete', finCount > 0);
+    }
+
+    // ---- STEP 1: TEAMS ----
+    function renderStepTeams() {
+      const t = TOURNAMENT;
+      const inIds = new Set(t.team_ids || []);
+      const inTeams = (t.team_ids || []).map(teamById).filter(Boolean);
+      const outTeams = ALL_TEAMS.filter((x) => !inIds.has(x.id));
+
+      // chips
+      $('#chips').innerHTML = inTeams.length
+        ? inTeams.map((team) => `
+          <span class="chip" data-team="${team.id}">
+            <span class="dot" style="background:${esc(team.color)}"></span>
+            ${esc(team.name)}
+            <span class="x" title="Remove" data-action="remove-team" data-team-id="${team.id}" data-team-name="${esc(team.name)}">×</span>
+          </span>`).join('')
+        : `<div class="empty-text">No teams yet — pick from below, or create one.</div>`;
+
+      // picker
+      const pickerSection = $('#pickerSection');
+      if (outTeams.length === 0) {
+        pickerSection.innerHTML = ALL_TEAMS.length === 0
+          ? `<div class="empty-text">No teams exist anywhere yet. Create one above and refresh.</div>`
+          : `<div class="empty-text">All your teams are already in this tournament ✓</div>`;
+      } else {
+        pickerSection.innerHTML = `
+          <div style="display:flex; align-items:center; justify-content:space-between; margin:8px 0 6px">
+            <span class="muted" style="font-weight:600">Add from your teams</span>
+            <span style="display:flex; gap:6px">
+              <button class="ghost" id="selectAllBtn" type="button">Select all</button>
+              <button class="ghost" id="clearAllBtn" type="button">Clear</button>
+            </span>
+          </div>
+          <div class="picker" id="picker">${outTeams.map((team) => `
+            <label data-team-id="${team.id}">
+              <input type="checkbox" value="${team.id}">
+              <span class="dot" style="background:${esc(team.color)}"></span>
+              ${esc(team.name)}
+            </label>`).join('')}
+          </div>
+          <div class="row" style="margin-top:12px">
+            <div>
+              <button class="primary" id="addTeamsBtn" type="button" style="width:auto">
+                ➕ Add selected teams
+              </button>
+            </div>
+            <div class="muted" style="flex:1; align-self:center; padding:8px">
+              ${outTeams.length} team${outTeams.length === 1 ? '' : 's'} available
+            </div>
+          </div>`;
+      }
+
+      refreshStepper();
+    }
+
+    // ---- STEP 2: SCHEDULE ----
+    function renderStepSchedule() {
+      const t = TOURNAMENT;
+      const inIds = new Set(t.team_ids || []);
+      const inTeams = (t.team_ids || []).map(teamById).filter(Boolean);
+      const body = $('#scheduleBody');
+      const tnMatches = matchesForThisTournament();
+
+      const formBlock = inTeams.length < 2
+        ? `<div class="empty-text">Add at least 2 teams first (Step 1).</div>`
+        : `
+          <div class="row">
+            <div>
+              <label>Home team</label>
+              <select id="tHome">${inTeams.map((tm) => `<option value="${tm.id}">${esc(tm.name)}</option>`).join('')}</select>
+            </div>
+            <div>
+              <label>Away team</label>
+              <select id="tAway">${inTeams.map((tm) => `<option value="${tm.id}">${tm.id !== inTeams[0].id ? esc(tm.name) : esc(tm.name) + ' (opponent)'}</option>`).join('')}</select>
+            </div>
+            <div>
+              <label>Round</label>
+              <input type="number" id="tRound" value="1" min="1" max="50" style="width:90px">
+            </div>
+            <div>
+              <label>Group</label>
+              <input id="tGroup" placeholder="A" style="width:80px">
+            </div>
+            <div>
+              <label>Date &amp; time</label>
+              <input type="datetime-local" id="tWhen">
+            </div>
+          </div>
+          ${t.sport === 'cricket' ? `
+          <div class="row" style="margin-top:10px">
+            <div>
+              <label>Overs / innings</label>
+              <input type="number" id="tOvers" value="20" min="1" max="50" style="width:120px">
+            </div>
+            <div>
+              <label>Players / side</label>
+              <input type="number" id="tPlayers" value="11" min="2" max="11" style="width:120px">
+            </div>
+          </div>` : `
+          <div class="row" style="margin-top:10px">
+            <div>
+              <label>Minutes per half</label>
+              <input type="number" id="tHalf" value="45" min="1" max="60" style="width:140px">
+            </div>
+          </div>`}
+          <div class="row" style="margin-top:14px">
+            <div>
+              <button class="primary" id="scheduleBtn" type="button" style="width:auto">
+                🗓 Schedule match
+              </button>
+            </div>
+            <div class="muted" style="flex:1; align-self:center">
+              Scheduling doesn't start the match — start it on Step 3.
+            </div>
+          </div>`;
+
+      const scheduledList = tnMatches.length === 0
+        ? `<div class="empty-text" style="margin-top:14px">No matches scheduled yet.</div>`
+        : `<h3 style="margin-top:24px; font-size:13px; text-transform:uppercase; color:var(--muted); letter-spacing:1px">Scheduled (${tnMatches.length})</h3>
+           <div class="mt-list" style="margin-top:8px">${tnMatches.map(renderMatchItem).join('')}</div>`;
+
+      body.innerHTML = formBlock + scheduledList;
+      refreshStepper();
+    }
+
+    function renderMatchItem(m) {
+      const home = teamById(m.home_team_id);
+      const away = teamById(m.away_team_id);
+      const statusBadge = `<span class="badge ${m.status}">${m.status}</span>`;
+      const dt = m.scheduled_at ? new Date(m.scheduled_at) : null;
+      const when = dt ? `<span class="meta">📅 ${dt.toLocaleString()}</span>` : '';
+      return `<div class="mt-item">
+        <div class="vs">
+          ${statusBadge}
+          <span class="dot" style="background:${esc(home?.color || '#888')}; width:10px; height:10px; border-radius:50%;"></span>
+          <b>${esc(home?.name || '?')}</b>
+          <span class="pill">vs</span>
+          <b>${esc(away?.name || '?')}</b>
+          <span class="dot" style="background:${esc(away?.color || '#888')}; width:10px; height:10px; border-radius:50%;"></span>
+        </div>
+        ${when}
+        <div class="actions">
+          ${m.status === 'scheduled'
+            ? `<button data-action="start-match" data-id="${m.id}" style="border-color:var(--accent); color:var(--accent)">▶ Start match</button>`
+            : `<button data-action="start-match" data-id="${m.id}">${m.status === 'finished' ? 'Re-open (demote)' : 'Restart'}</button>`}
+          <a href="/control/${m.id}" target="_blank">Open control</a>
+          <a href="/overlay/${m.id}" target="_blank">Overlay</a>
+          <button class="danger" data-action="delete-match" data-id="${m.id}" data-name="${esc((home?.name || '?') + ' vs ' + (away?.name || '?'))}">Remove from tournament</button>
+        </div>
+      </div>`;
+    }
+
+    // ---- STEP 3: MATCH DAY ----
+    function renderStepDay() {
+      const t = TOURNAMENT;
+      const tnMatches = matchesForThisTournament();
+      const body = $('#dayBody');
+      const tossNote = (t.sport === 'cricket') ? ' (you\'ll enter the toss when you start)' : '';
+      $('#tossNote').textContent = tossNote;
+      if (tnMatches.length === 0) {
+        body.innerHTML = `<div class="empty-text">No matches scheduled yet — finish Step 2 first.</div>`;
+      } else {
+        // Bucket by status
+        const order = ['scheduled', 'live', 'finished'];
+        const sections = order.map((st) => {
+          const list = tnMatches.filter((m) => m.status === st);
+          if (!list.length) return '';
+          const label = st === 'scheduled' ? 'Upcoming'
+                      : st === 'live' ? 'Live now'
+                      : 'Finished';
+          return `<h3 style="margin:18px 0 8px; font-size:13px; text-transform:uppercase; color:var(--muted); letter-spacing:1px">${label} (${list.length})</h3>
+            <div class="mt-list">${list.map(renderMatchItem).join('')}</div>`;
+        }).join('');
+        body.innerHTML = sections + `
+          <div class="muted" style="margin-top:18px; padding:14px; background:var(--panel2); border:1px solid var(--line); border-radius:10px">
+            <b style="color:var(--text)">Operator tip</b><br>
+            Open the control panel in a phone / tablet browser, score live, and the OBS overlay at <code>/overlay/${t.id ? 'football' : ''}/…</code> updates in real time over WebSocket.
+          </div>`;
+      }
+      refreshStepper();
+    }
+
+    // ---- STEP 4: LEADERBOARD ----
+    async function refreshLeaderboard() {
+      const body = $('#leaderboardBody');
+      body.innerHTML = `<div class="muted">Loading…</div>`;
+      try {
+        const data = await api(`/api/tournaments/${encodeURIComponent(TID)}/standings`);
+        if (!data.standings.length) {
+          body.innerHTML = `<div class="empty-text">No matches played yet. The leaderboard will appear here as matches finish.</div>`;
+          return;
+        }
+        const league = TOURNAMENT.format === 'league';
+        body.innerHTML = `
+          <table class="lb-table">
+            <thead>
+              <tr>
+                <th class="pos">#</th>
+                <th>Team</th>
+                <th class="num">P</th>
+                <th class="num">W</th>
+                <th class="num">D</th>
+                <th class="num">L</th>
+                ${league ? `<th class="num">GF</th><th class="num">GA</th><th class="num">GD</th><th class="num">Pts</th>` : ''}
+              </tr>
+            </thead>
+            <tbody>${data.standings.map((s, i) => `
+              <tr>
+                <td class="pos">${i + 1}</td>
+                <td class="team">
+                  <span class="dot" style="display:inline-block; vertical-align:middle; background:${esc(s.color || '#888')}; width:10px; height:10px; border-radius:50%; margin-right:8px"></span>
+                  ${esc(s.name)}
+                </td>
+                <td class="num">${s.played}</td>
+                <td class="num">${s.won}</td>
+                <td class="num">${s.drawn}</td>
+                <td class="num">${s.lost}</td>
+                ${league ? `
+                  <td class="num">${s.gf ?? ''}</td>
+                  <td class="num">${s.ga ?? ''}</td>
+                  <td class="num">${(s.gf != null && s.ga != null) ? (s.gf - s.ga) : ''}</td>
+                  <td class="num"><b>${s.points ?? ''}</b></td>` : ''}
+              </tr>`).join('')}
+            </tbody>
+          </table>
+          <div class="muted" style="margin-top:14px">
+            Tip: open <a id="fullOverlayLink2" href="/overlay/tournament/${encodeURIComponent(TID)}" target="_blank" style="color:var(--accent)">/overlay/tournament/…</a> in OBS for a full-screen leaderboard view.
+          </div>`;
+      } catch (e) {
+        body.innerHTML = `<div class="empty-text">Couldn't load standings: ${esc(e.message)}</div>`;
+      }
+    }
+
+    // ---- ACTIONS ----
+    async function refreshAll() {
+      try {
+        const t = await api(`/api/tournaments`);
+        TOURNAMENT = t.find((x) => x.id === TID);
+        ALL_MATCHES = await api('/api/matches');
+        renderBanner(); refreshStepper();
+        renderStepTeams(); renderStepSchedule(); renderStepDay();
+        if ($('#sec-leaderboard').classList.contains('visible')) refreshLeaderboard();
+      } catch (e) { toast(e.message, 'error'); }
+    }
+    function scrollToStep(step) {
+      const el = $('#sec-' + step);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    $$('.stepper button').forEach((b) => b.addEventListener('click', () => scrollToStep(b.dataset.step)));
+
+    async function addCheckedTeams() {
+      const boxes = $$('.picker input[type=checkbox]:checked');
+      const ids = boxes.map((c) => +c.value);
+      if (!ids.length) return toast('Tick at least one team first');
+      try {
+        await api(`/api/tournaments/${encodeURIComponent(TID)}/teams`, { method: 'POST', body: { team_ids: ids } });
+        toast(ids.length === 1 ? 'Team added' : `${ids.length} teams added`);
+        await refreshAll();
+      } catch (e) { toast(e.message, 'error'); }
+    }
+    async function removeTeamFromTournament(teamId, teamName) {
+      if (!confirm(`Remove "${teamName}" from this tournament?`)) return;
+      try {
+        await api(`/api/tournaments/${encodeURIComponent(TID)}/teams/${teamId}`, { method: 'DELETE' });
+        toast('Team removed');
+        await refreshAll();
+      } catch (e) { toast(e.message, 'error'); }
+    }
+
+    async function createTeamInTournament() {
+      const name = $('#ntName').value.trim();
+      const short_name = ($('#ntShort').value || '').trim() || name.slice(0, 4).toUpperCase();
+      const color = $('#ntColor').value;
+      if (!name) return toast('Give the team a name first');
+      try {
+        const out = await api('/api/teams', {
+          method: 'POST',
+          body: { name, short_name, color },
+        });
+        await api(`/api/tournaments/${encodeURIComponent(TID)}/teams`, {
+          method: 'POST', body: { team_ids: [out.id] },
+        });
+        $('#ntName').value = ''; $('#ntShort').value = '';
+        ALL_TEAMS = await api('/api/teams');
+        toast(`Created "${name}" and added to tournament`);
+        await refreshAll();
+      } catch (e) { toast(e.message, 'error'); }
+    }
+
+    async function scheduleMatchInTournament() {
+      const home = +$('#tHome').value;
+      const away = +$('#tAway').value;
+      const round = +$('#tRound').value || 1;
+      const group_name = $('#tGroup').value.trim() || null;
+      const when = $('#tWhen').value;
+      if (home === away) return toast('Pick two different teams');
+      if (!teamById(home) || !teamById(away)) return toast('Both teams must be in this tournament');
+      const t = TOURNAMENT;
+      const opts = {};
+      if (t.sport === 'cricket') {
+        opts.oversPerInnings = +$('#tOvers').value || 20;
+        opts.playersPerSide  = +$('#tPlayers').value || 11;
+      } else {
+        opts.halfMinutes = +$('#tHalf').value || 45;
+      }
+      try {
+        const m = await api('/api/matches', {
+          method: 'POST',
+          body: {
+            sport: t.sport,
+            title: `${t.name} R${round}`,
+            home_team_id: home,
+            away_team_id: away,
+            scheduled_at: when ? new Date(when).getTime() : null,
+            options: opts,
+          },
+        });
+        await api(`/api/tournaments/${encodeURIComponent(TID)}/matches`, {
+          method: 'POST', body: { match_id: m.id, round, group_name },
+        });
+        toast('Match scheduled');
+        await refreshAll();
+      } catch (e) { toast(e.message, 'error'); }
+    }
+
+    async function startMatchInTour(id) {
+      const m = ALL_MATCHES.find((x) => x.id === id);
+      if (!m) return;
+      // For cricket, capture the toss on start
+      let tossWinner = 'home';
+      let tossDecision = 'bat';
+      if (TOURNAMENT.sport === 'cricket') {
+        const home = teamById(m.home_team_id)?.name || 'Home';
+        const away = teamById(m.away_team_id)?.name || 'Away';
+        tossWinner = prompt(`Who won the toss?\n\nhome: ${home}\naway: ${away}\n\nType "home" or "away" then "bat" or "bowl" on next line:`, 'home\nbat');
+        if (!tossWinner) return;
+        const [w, d] = tossWinner.split(/\s+/);
+        if (!['home','away'].includes(w)) return toast('Type "home" or "away" first');
+        if (!['bat','bowl'].includes(d)) return toast('Then "bat" or "bowl"');
+        tossWinner = w; tossDecision = d;
+      }
+      const opts = { tossWinner, tossDecision };
+      try {
+        await api(`/api/matches/${encodeURIComponent(id)}/start`, {
+          method: 'POST', body: { options: opts },
+        });
+        toast('Match is live');
+        await refreshAll();
+      } catch (e) { toast(e.message, 'error'); }
+    }
+
+    async function deleteMatch(id, name) {
+      if (!confirm(`Remove "${name}" from this tournament? The match stays in Matches (you can re-add later).`)) return;
+      try {
+        // Find which tournament_match row to delete
+        const link = (TOURNAMENT.matches || []).find((x) => x.match_id === id);
+        if (link) {
+          await api(`/api/tournaments/${encodeURIComponent(TID)}/matches/${encodeURIComponent(id)}`, { method: 'DELETE' });
+        }
+        toast('Removed from tournament');
+        await refreshAll();
+      } catch (e) { toast(e.message, 'error'); }
+    }
+
+    async function markComplete() {
+      const next = TOURNAMENT.status === 'active' ? 'completed' : 'active';
+      try {
+        await api(`/api/tournaments/${encodeURIComponent(TID)}`, { method: 'PUT', body: { status: next } });
+        toast(next === 'completed' ? 'Marked completed' : 'Re-opened');
+        await refreshAll();
+      } catch (e) { toast(e.message, 'error'); }
+    }
+
+    async function deleteTournament() {
+      if (!confirm(`Delete tournament "${TOURNAMENT.name}"? Matches stay in Matches (just lose their tournament link). This can't be undone.`)) return;
+      try {
+        await api(`/api/tournaments/${encodeURIComponent(TID)}`, { method: 'DELETE' });
+        toast('Tournament deleted');
+        location.href = '/admin/tournaments.html';
+      } catch (e) { toast(e.message, 'error'); }
+    }
+
+    // ---- settings dropdown ----
+    function toggleSettings() {
+      const existing = document.querySelector('.settings-pop');
+      if (existing) { existing.remove(); return; }
+      const pop = document.createElement('div');
+      pop.className = 'settings-pop';
+      pop.innerHTML = `
+        <div class="info">${esc(TOURNAMENT.status === 'completed' ? 'Mark active to re-open editing matches.' : 'Mark complete when all matches finish.')}</div>
+        <button class="ghost" id="markCompleteBtn">${TOURNAMENT.status === 'completed' ? 'Re-open tournament' : 'Mark tournament completed'}</button>
+        <button class="danger" id="deleteTournamentBtn" style="margin-top:6px">Delete tournament</button>`;
+      document.body.appendChild(pop);
+      pop.querySelector('#markCompleteBtn').onclick = () => { pop.remove(); markComplete(); };
+      pop.querySelector('#deleteTournamentBtn').onclick = () => { pop.remove(); deleteTournament(); };
+      // dismiss on outside click
+      setTimeout(() => {
+        const off = (e) => {
+          if (!pop.contains(e.target) && e.target !== $('#settingsBtn')) {
+            pop.remove(); document.removeEventListener('click', off);
+          }
+        };
+        document.addEventListener('click', off);
+      }, 50);
+    }
+    $('#settingsBtn').addEventListener('click', (e) => { e.stopPropagation(); toggleSettings(); });
+
+    // ---- delegated clicks on step bodies ----
+    document.addEventListener('click', (e) => {
+      const t = e.target.closest('[data-action]');
+      if (!t) return;
+      const a = t.dataset.action;
+      if (a === 'remove-team') removeTeamFromTournament(+t.dataset.teamId, t.dataset.teamName);
+      else if (a === 'start-match') startMatchInTour(t.dataset.id);
+      else if (a === 'delete-match') deleteMatch(t.dataset.id, t.dataset.name);
+    });
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('.picker label')) {
+        const label = e.target.closest('label');
+        // visual toggle (immediate)
+        setTimeout(() => label.classList.toggle('checked', label.querySelector('input').checked), 0);
+      }
+      if (e.target.id === 'selectAllBtn') $$('.picker input[type=checkbox]').forEach((c) => { c.checked = true; c.dispatchEvent(new Event('change')); });
+      if (e.target.id === 'clearAllBtn')   $$('.picker input[type=checkbox]').forEach((c) => { c.checked = false; c.dispatchEvent(new Event('change')); });
+      if (e.target.id === 'addTeamsBtn') addCheckedTeams();
+      if (e.target.id === 'createTeamBtn') createTeamInTournament();
+      if (e.target.id === 'scheduleBtn') scheduleMatchInTournament();
+    });
+
+    // ---- boot ----
+    await loadAll();
+    renderBanner();
+    renderStepTeams();
+    renderStepSchedule();
+    renderStepDay();
+    await refreshLeaderboard();
+    // Refresh the leaderboard + step meta every 6s while on this page
+    setInterval(async () => {
+      try {
+        ALL_MATCHES = await api('/api/matches');
+        const t = await api(`/api/tournaments`);
+        TOURNAMENT = t.find((x) => x.id === TID);
+        if (TOURNAMENT) { refreshStepper(); renderStepDay(); refreshLeaderboard(); }
+      } catch {}
+    }, 6000);
+  </script>
+</body>
+</html>
